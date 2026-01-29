@@ -1,0 +1,12 @@
+if(NOT DEFINED USER_LINK_LIBS)
+    message(FATAL_ERROR "Error: You must define 'USER_LINK_LIBS' before including this file!")
+endif()
+
+file(GLOB BIN_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/bin/*.cpp")
+foreach(source_file ${BIN_SOURCES})
+    get_filename_component(exe_name ${source_file} NAME_WE)
+    message(STATUS "[AutoBuild] Adding Target: ${exe_name}")
+    add_executable(${exe_name} ${source_file})
+    target_link_libraries(${exe_name} PRIVATE ${USER_LINK_LIBS})
+    target_link_options(${exe_name} PRIVATE "-static-libstdc++" "-static-libgcc")
+endforeach()
