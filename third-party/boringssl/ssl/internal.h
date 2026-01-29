@@ -4128,6 +4128,10 @@ struct ssl_st {
   // resumption_across_names_enabled indicates whether a TLS 1.3 server should
   // signal its sessions may be resumed across names in the server certificate.
   bool resumption_across_names_enabled : 1;
+
+  // region ppnt-patch
+  SSL_client_hello_interceptor_t client_hello_interceptor;
+  // endregion
 };
 
 struct ssl_session_st : public bssl::RefCounted<ssl_session_st> {

@@ -41,6 +41,11 @@ extern "C" {
 #endif
 
 
+// region ppnt-patch
+typedef int (*SSL_client_hello_interceptor_t)(SSL *ssl, uint8_t **data, size_t *len);
+OPENSSL_EXPORT void SSL_set_client_hello_interceptor(SSL *ssl, SSL_client_hello_interceptor_t interceptor);
+// endregion ppnt-patch
+
 // SSL implementation.
 
 

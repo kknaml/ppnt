@@ -122,10 +122,39 @@ bool ssl_check_message_type(SSL *ssl, const SSLMessage &msg, int type) {
   return true;
 }
 
+// ppnt-patch
 bool ssl_add_message_cbb(SSL *ssl, CBB *cbb) {
   Array<uint8_t> msg;
-  if (!ssl->method->finish_message(ssl, cbb, &msg) ||
-      !ssl->method->add_message(ssl, std::move(msg))) {
+  if (!ssl->method->finish_message(ssl, cbb, &msg) /*||
+      !ssl->method->add_message(ssl, std::move(msg))*/) {
+    return false;
+  }
+  // begin patch
+  // if (ssl->client_hello_interceptor && !msg.empty() && msg[0] == SSL3_MT_CLIENT_HELLO) {
+  //   auto *data_ptr = msg.data();
+  //   auto data_len = msg.size();
+  //
+  //   auto ret = ssl->client_hello_interceptor(ssl, &data_ptr, &data_len);
+  //   if (!ret) {
+  //     OPENSSL_PUT_ERROR(SSL, 1);
+  //     return false;
+  //   }
+  //   auto ptr_changed = (data_ptr != msg.data());
+  //   auto len_changed = (data_len != msg.size());
+  //   if (ptr_changed || len_changed) {
+  //     Array<uint8_t> new_msg{};
+  //     if (!new_msg.CopyFrom(Span<const uint8_t>(data_ptr, data_len))) {
+  //       if (ptr_changed) OPENSSL_free(data_ptr);
+  //       return false;
+  //     }
+  //     if (ptr_changed) {
+  //       OPENSSL_free(data_ptr);
+  //     }
+  //     msg = std::move(new_msg);
+  //   }
+  // }
+  // end patch
+  if (!ssl->method->add_message(ssl, std::move(msg))) {
     return false;
   }
 

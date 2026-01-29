@@ -90,6 +90,36 @@ bool tls_finish_message(const SSL *ssl, CBB *cbb, Array<uint8_t> *out_msg) {
 }
 
 bool tls_add_message(SSL *ssl, Array<uint8_t> msg) {
+  // region ppnt patch
+   do {
+    if (ssl->client_hello_interceptor && !msg.empty() && msg[0] == SSL3_MT_CLIENT_HELLO) {
+      auto *data_ptr = msg.data();
+      auto data_len = msg.size();
+
+      auto ret = ssl->client_hello_interceptor(ssl, &data_ptr, &data_len);
+      if (ret == 0) {
+        OPENSSL_PUT_ERROR(SSL, 1);
+        // return false;
+        break;
+      }
+      auto ptr_changed = (data_ptr != msg.data());
+      auto len_changed = (data_len != msg.size());
+      if (ptr_changed || len_changed) {
+        Array<uint8_t> new_msg{};
+        if (!new_msg.CopyFrom(Span<const uint8_t>(data_ptr, data_len))) {
+          if (ptr_changed) OPENSSL_free(data_ptr);
+          break;
+        }
+        if (ptr_changed) {
+          OPENSSL_free(data_ptr);
+        }
+        msg = std::move(new_msg);
+      }
+    }
+  } while (false);
+  // endregion ppnt patch
+
+
   // Pack handshake data into the minimal number of records. This avoids
   // unnecessary encryption overhead, notably in TLS 1.3 where we send several
   // encrypted messages in a row. For now, we do not do this for the null
