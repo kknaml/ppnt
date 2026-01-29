@@ -37,6 +37,7 @@
 #define __hot			__attribute__((__hot__))
 #define __cold			__attribute__((__cold__))
 
+#undef CONFIG_NOLIBC
 #ifdef CONFIG_NOLIBC
 void *__uring_memset(void *s, int c, size_t n);
 void *__uring_malloc(size_t len);

@@ -3588,3 +3588,8 @@ int SSL_set1_requested_trust_anchors(SSL *ssl, const uint8_t *ids,
 }
 
 int SSL_CTX_get_security_level(const SSL_CTX *ctx) { return 0; }
+
+// region ppnt-patch
+void SSL_set_client_hello_interceptor(SSL *ssl, SSL_client_hello_interceptor_t interceptor) {
+  ssl->client_hello_interceptor = interceptor;
+}
