@@ -39,7 +39,10 @@ export namespace ppnt::net {
             auto res = co_await io::async_connect(fd, addr.sockaddr_ptr(), addr.socklen());
             if (!res) {
                 close_fd(fd);
-                co_return std::unexpected{res.error()};
+                auto &cause = res.error();
+                auto err = Error{cause.ec, std::format("cannot connect to {}", addr)};
+                err.with_cause(std::move(cause));
+                co_return std::unexpected{err};
             }
             co_return TcpStream(fd);
         }
@@ -103,6 +106,15 @@ export namespace ppnt::net {
         [[nodiscard]]
         auto leak_handle() noexcept -> int {
             return std::exchange(fd_, -1);
+        }
+
+        auto close() {
+            close_fd(fd_);
+        }
+
+        auto is_alive() -> bool {
+            // TODO
+            return fd_ != -1;
         }
     };
 }

@@ -99,6 +99,7 @@ export namespace ppnt::io {
         }
 
         auto write_string(std::string_view s) -> void {
+            if (s.empty()) return;
             write_bytes(s.data(), s.size());
         }
 

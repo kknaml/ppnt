@@ -27,6 +27,11 @@ export namespace ppnt {
         NonCopy &operator=(const NonCopy &) = delete;
     };
 
+    class NonInstance {
+    public:
+        NonInstance() = delete;
+    };
+
     template<typename  T>
     class Singleton : public NonCopy {
     public:
@@ -55,6 +60,31 @@ export namespace ppnt {
 
     template<std::size_t N>
     FixedString(const char (&s)[N]) -> FixedString<N - 1>;
+
+    template<typename T, typename P, typename R>
+    concept HasAwaiterMembers = requires(T &t, std::coroutine_handle<std::conditional_t<std::is_same_v<P, Unit>, void, P>> h) {
+        { t.await_ready() } -> std::convertible_to<bool>;
+        t.await_suspend(h);
+        { t.await_resume() } -> std::convertible_to<R>;
+    };
+
+    template<typename P, typename T>
+    concept HasAwaitTransform = requires(P &p, T &&t) {
+        p.await_transform(std::forward<T>(t));
+    };
+
+    template<typename T, typename R, typename Promise = Unit>
+    concept Awaiterble =
+        (std::same_as<Promise, Unit> && HasAwaiterMembers<T, Unit, R>)
+        ||
+        (!std::same_as<Promise, Unit> && (
+          (HasAwaitTransform<Promise, T> &&
+           requires(Promise& p, T &&t) {
+               { p.await_transform(std::forward<T>(t)) } -> HasAwaiterMembers<Promise, R>;
+           })
+          ||
+          (!HasAwaitTransform<Promise, T> && HasAwaiterMembers<T, Promise, R>)
+        ));
 
     template<typename T>
     concept HasToString = requires(T &t) {

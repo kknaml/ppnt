@@ -6,6 +6,9 @@ export module llhttp;
 
 export namespace llhttp {
 
+    using ::llhttp_t;
+    using ::llhttp_settings_t;
+
     using ::llhttp_errno;
     using ::llhttp_flags;
     using ::llhttp_lenient_flags;
