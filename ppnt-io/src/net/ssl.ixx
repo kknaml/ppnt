@@ -13,9 +13,8 @@ import ppnt.net.tls;
 export namespace ppnt::net {
 
     struct SslFree {
-        auto operator()(boringssl::SSL *ptr) -> void {
-            boringssl::SSL_free(ptr);
-        }
+        auto operator()(boringssl::SSL *ptr) -> void;
+
         auto operator()(boringssl::SSL_CTX *ptr) -> void {
             boringssl::SSL_CTX_free(ptr);
         }
@@ -31,9 +30,26 @@ export namespace ppnt::net {
     class TlsContext {
     private:
         UniqueCtx ctx_;
-        explicit TlsContext(boringssl::SSL_CTX *ctx) : ctx_(ctx) {}
-    public:
+        ClientHelloSpecFactory *spec_factory_;
 
+    public:
+        explicit TlsContext(boringssl::SSL_CTX *ctx, ClientHelloSpecFactory *spec_factory)
+        : ctx_(ctx), spec_factory_(spec_factory) {}
+
+        TlsContext(TlsContext &&other) noexcept
+        : ctx_(std::move(other.ctx_)), spec_factory_(std::exchange(other.spec_factory_, nullptr)) {}
+
+        TlsContext(const TlsContext &other) = delete;
+
+        auto operator=(const TlsContext &) = delete;
+
+        auto operator=(TlsContext &&other) noexcept -> TlsContext & {
+            if (this != &other) {
+                this->ctx_ = std::move(other.ctx_);
+                this->spec_factory_ = std::exchange(other.spec_factory_, nullptr);
+            }
+            return *this;
+        }
 
         static auto client() -> Result<TlsContext> {
             auto *method = boringssl::TLS_client_method();
@@ -43,7 +59,7 @@ export namespace ppnt::net {
             }
             boringssl::SSL_CTX_set_min_proto_version(ctx,boringssl::tls1_2_version);
             boringssl::SSL_CTX_set_grease_enabled(ctx, 1);
-            return TlsContext(ctx);
+            return TlsContext(ctx, nullptr);
         }
 
         [[nodiscard]]
@@ -52,8 +68,13 @@ export namespace ppnt::net {
         }
 
         [[nodiscard]]
-      auto native_handle() ->  boringssl::SSL_CTX * {
+        auto native_handle() ->  boringssl::SSL_CTX * {
             return ctx_.get();
+        }
+
+        [[nodiscard]]
+        auto get_spec_factory() const -> ClientHelloSpecFactory * {
+            return spec_factory_;
         }
     };
 
@@ -84,12 +105,13 @@ export namespace ppnt::net {
             return *this;
         }
 
-        static auto connect(TcpStream inner, TlsContext &ctx, std::string_view host_name, bool handshake = true) -> io::Task<Result<TlsStream>> {
+        static auto connect(TcpStream inner, TlsContext ctx, std::string_view host_name, bool handshake = true) -> io::Task<Result<TlsStream>> {
             auto *raw_ssl = boringssl::SSL_new(ctx.native_handle());
             if (!raw_ssl) {
                 co_return std::unexpected{Error{std::make_error_code(std::errc::not_enough_memory), "tls connect"}};
             }
-            auto *spec = new ClientHelloSpec(make_test_spec());
+            // auto *spec = create_hello_spec_factory(make_test_spec);
+            auto *spec = ctx.get_spec_factory();
             boringssl::SSL_set_ex_data(raw_ssl, detail::get_tls_spec_slot(), static_cast<void *>(spec));
             boringssl::SSL_set_client_hello_interceptor(raw_ssl, my_client_hello_interceptor);
             boringssl::SSL_set_connect_state(raw_ssl);
@@ -215,4 +237,6 @@ export namespace ppnt::net {
             co_return n;
         }
     };
+
+
 }

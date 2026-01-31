@@ -1,6 +1,7 @@
 export module ppnt.err;
 
 import std;
+import ppnt.traits;
 
 export namespace ppnt {
 
@@ -80,7 +81,7 @@ export namespace ppnt {
     };
 
     template<typename T>
-    using Result = std::expected<T, Error>;
+    using Result = std::expected<Regularized<T>, Error>;
 
 
     auto make_err_result(

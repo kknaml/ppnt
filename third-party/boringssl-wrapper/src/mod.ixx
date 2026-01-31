@@ -53,6 +53,7 @@ export namespace boringssl {
     using ::SSL_get_ex_new_index;
     using ::SSL_set_ex_data;
     using ::SSL_set_client_hello_interceptor;
+    using ::CRYPTO_EX_DATA;
 
     // BIO Functions
     using ::BIO_new;

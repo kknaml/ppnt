@@ -11,7 +11,7 @@ import ppnt.log;
 using namespace ppnt;
 
 auto async_main() -> io::Task<int> {
-    auto s = co_await net::TcpStream::connect("127.0.0.1", 8080);
+    auto s = co_await net::TcpStream::connect("baidu.com", 80);
     if (!s) {
         log::error({"error: {}"}, s.error());
         co_return -1;

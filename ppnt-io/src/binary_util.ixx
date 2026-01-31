@@ -83,7 +83,7 @@ export namespace ppnt::io {
         }
 
         template<typename Func>
-        auto write_u16_length_prefixed(Func&& block_writer) -> void {
+        auto write_u16_length_prefixed(Func &&block_writer) -> void {
             size_t len_pos = buffer_.size();
             write_u16(0);
             size_t start_pos = buffer_.size();

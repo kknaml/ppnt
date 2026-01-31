@@ -10,6 +10,7 @@ import ppnt.net.tcp_stream;
 import ppnt.io.runtime;
 import ppnt.traits;
 import ppnt.net.ssl;
+import ppnt.io;
 
 using namespace ppnt;
 
@@ -71,15 +72,21 @@ auto async_main() -> io::Task<int> {
 auto https_demo() -> io::Task<int> {
     auto stream = co_await net::TcpStream::connect("tls.peet.ws", 443);
     auto ctx = net::TlsContext::client();
-    auto tls_res = co_await net::TlsStream::connect(std::move(*stream), *ctx, "tls.peet.ws");
+    auto tls_res = co_await net::TlsStream::connect(std::move(*stream), std::move(*ctx), "tls.peet.ws");
     if (!tls_res) {
         log::error({"TLS connect failed: {}"}, tls_res.error());
         co_return 10;
     }
     auto tls = std::move(*tls_res);
     std::string req = "GET /api/all HTTP/1.1\r\nHost: tls.peet.ws\r\nConnection: close\r\n\r\n";
-    co_await tls.write(std::span{(uint8_t *)req.c_str(), req.size()});
+    auto r = co_await tls.write(std::span{(uint8_t *)req.c_str(), req.size()});
+    if (!r) {
+        log::error({"write failed"}, r.error());
+        co_return 30;
+    }
+    log::info({"write {}"}, *r);
     uint8_t buf[1024];
+    auto body = io::BinartWriter{};
     while (true) {
         auto res = co_await tls.read(std::span{buf});
         if (!res) {
@@ -87,8 +94,11 @@ auto https_demo() -> io::Task<int> {
             break;
         }
         if (*res == 0) break;
-        log::info({"read {}"}, std::string_view{(char *)buf, *res});
+        log::info({"read {}"}, *res);
+        body.write_bytes(buf, *res);
     }
+    auto str = std::string_view{reinterpret_cast<char *>(body.buffer().data()), body.size()};
+    log::info({"msg:\n {}"}, str);
     co_return 50;
 }
 
