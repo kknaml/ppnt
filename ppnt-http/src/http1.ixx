@@ -42,14 +42,95 @@ export namespace ppnt::http {
     };
 
     template<Connection C>
-    class Http1Session {
+    class Http1Session : public NonCopy{
+    public:
+        friend class HttpResponse<Http1Session>;
     private:
         C connection_;
         llhttp::llhttp_t parser_{};
         llhttp::llhttp_settings_t settings_{};
 
+        std::vector<uint8_t> body_buffer_{};
+        HttpResponse<Http1Session> response_{};
+        std::string temp_header_name_{};
+        std::string temp_header_value_{};
+        bool last_was_value_{false};
+        bool headers_complete_{false};
+        bool message_complete_{false};
+
     public:
         explicit Http1Session(C connection) : connection_(std::move(connection)) {
+            this->init();
+        }
+
+        Http1Session(Http1Session &&other) noexcept
+            : connection_(std::move(other.connection_)), parser_(other.parser_), settings_(other.settings_),
+            body_buffer_(std::move(other.body_buffer_)), response_(std::move(other.response_)),
+            temp_header_name_(std::move(other.temp_header_name_)), temp_header_value_(std::move(other.temp_header_value_)),
+            last_was_value_(other.last_was_value_), headers_complete_(other.headers_complete_),
+            message_complete_(other.message_complete_) {}
+
+        auto operator=(Http1Session &&other) -> Http1Session & {
+            if (this != &other) {
+                connection_ = std::move(other.connection_);
+                parser_ = std::move(other.parser_);
+                settings_ = other.settings_;
+                body_buffer_ = std::move(other.body_buffer_);
+                response_ = std::move(other.response_);
+                temp_header_name_ = std::move(other.temp_header_name_);
+                temp_header_value_ = std::move(other.temp_header_value_);
+                last_was_value_ = other.last_was_value_;
+                headers_complete_ = other.headers_complete_;
+                message_complete_ = other.message_complete_;
+            }
+            return *this;
+        }
+
+        auto request(HttpRequest request) -> io::Task<Result<HttpResponse<Http1Session>>> {
+            reset_state();
+            auto payload = request.serialize_to_h1();
+
+            auto res = co_await connection_.write(payload);
+            if (!res) co_return std::unexpected{res.error()};
+            std::array<uint8_t, 4096> buf{};
+            while (!headers_complete_) {
+                auto read_res = co_await connection_.read(buf);
+                if (!read_res) co_return std::unexpected{read_res.error()};
+                auto n = *read_res;
+                if (n == 0) break; // EOF
+                auto err = llhttp::llhttp_execute(&parser_, reinterpret_cast<const char *>(buf.data()), n);
+                if (err != llhttp::llhttp_errno::HPE_OK) {
+                    co_return make_err_result(std::errc::bad_message, "http1 request");
+                }
+            }
+
+            co_return std::move(this->response_);
+        }
+
+        auto body_full(HttpResponse<Http1Session> &resp) -> io::Task<Result<std::vector<uint8_t>>> {
+            std::array<uint8_t, 4096> buf{};
+            while (!message_complete_) {
+                auto read_res = co_await connection_.read(buf);
+                if (!read_res) co_return std::unexpected{read_res.error()};
+
+                auto n = *read_res;
+                if (n == 0) break;
+                auto err = llhttp::llhttp_execute(&parser_, reinterpret_cast<const char *>(buf.data()), n);
+                if (err != llhttp::llhttp_errno::HPE_OK) {
+                    co_return make_err_result(std::errc::bad_message, "http1 body");
+                }
+            }
+
+            co_return std::move(this->body_buffer_);
+        }
+
+        auto close() -> void {
+            connection_.close();
+        }
+
+    private:
+
+        auto init() -> void {
             llhttp::llhttp_settings_init(&settings_);
             settings_.on_message_begin = on_message_begin;
             settings_.on_status = on_status;
@@ -61,49 +142,71 @@ export namespace ppnt::http {
 
             llhttp::llhttp_init(&parser_, llhttp::llhttp_type::HTTP_RESPONSE, &settings_);
             parser_.data = this;
+            response_ = HttpResponse(this);
         }
 
-        auto request(HttpRequest request) -> io::Task<Result<Unit>> { // TODO
-            auto payload = request.serialize_to_h1();
-
-            auto res = co_await connection_.write(payload);
-            if (!res) co_return std::unexpected{res.error()};
-            std::array<uint8_t, 4096> buf{};
-
-            co_return{};
+        auto reset_state() -> void {
+            llhttp::llhttp_reset(&parser_);
+            response_ = HttpResponse{this};
+            temp_header_name_.clear();
+            temp_header_value_.clear();
+            last_was_value_ = false;
+            message_complete_ = false;
         }
 
-        auto close() -> void {
-            connection_.close();
+        auto commit_header() -> void {
+            if (!temp_header_name_.empty()) {
+                auto &headers = response_.get_headers();
+                headers.add(temp_header_name_, temp_header_value_);
+                temp_header_name_.clear();
+                temp_header_value_.clear();
+            }
         }
 
-    private:
         static auto on_message_begin(llhttp::llhttp_t *p) -> int {
             auto *self = static_cast<Http1Session *>(p->data);
             return 0;
         }
 
         static auto on_status(llhttp::llhttp_t *p, const char *at, size_t length) -> int {
+            auto *self = static_cast<Http1Session *>(p->data);
+            self->response_.set_status(HttpStatus{p->status_code, std::string{at, length}});
             return 0;
         }
 
         static auto on_header_field(llhttp::llhttp_t *p, const char *at, size_t length) -> int {
+            auto *self = static_cast<Http1Session *>(p->data);
+            if (self->last_was_value_) {
+                self->commit_header();
+                self->last_was_value_ = false;
+            }
+            self->temp_header_name_.append(at, length);
             return 0;
         }
 
         static auto on_header_value(llhttp::llhttp_t *p, const char *at, size_t length) -> int {
+            auto *self = static_cast<Http1Session *>(p->data);
+            self->last_was_value_ = true;
+            self->temp_header_value_.append(at, length);
             return 0;
         }
 
         static auto on_headers_complete(llhttp::llhttp_t *p) -> int {
+            auto *self = static_cast<Http1Session *>(p->data);
+            if (self->last_was_value_) self->commit_header();
+            self->headers_complete_ = true;
             return 0;
         }
 
         static auto on_body(llhttp::llhttp_t *p, const char *at, size_t length) -> int {
+            auto *self = static_cast<Http1Session *>(p->data);
+            self->body_buffer_.insert(self->body_buffer_.end(), at, at + length);
             return 0;
         }
 
         static auto on_message_complete(llhttp::llhttp_t *p) -> int {
+            auto *self = static_cast<Http1Session *>(p->data);
+            self->message_complete_ = true;
             return 0;
         }
     };

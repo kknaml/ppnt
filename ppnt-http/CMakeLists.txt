@@ -9,7 +9,7 @@ target_sources(
         FILES ${PPNT_HTTP_MODULES}
 )
 
-target_link_libraries(ppnt-http PUBLIC ppnt-io boringssl-wrapper llhttp-wrapper)
+target_link_libraries(ppnt-http PUBLIC ppnt-io boringssl-wrapper llhttp-wrapper nghttp2-wrapper)
 
 set(USER_LINK_LIBS ppnt-http)
 include(${PROJECT_SOURCE_DIR}/build_bins.cmake)

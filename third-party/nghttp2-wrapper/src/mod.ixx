@@ -21,6 +21,11 @@ export namespace nghttp2 {
     using ::nghttp2_info;
     using ::nghttp2_rcbuf;
     using ::nghttp2_vec;
+    using ::nghttp2_frame;
+    using ::nghttp2_session_mem_send;
+    using ::nghttp2_session_consume;
+    using ::nghttp2_session_consume_connection;
+    using ::nghttp2_session_consume_stream;
 
     // Enums
     using ::nghttp2_error;

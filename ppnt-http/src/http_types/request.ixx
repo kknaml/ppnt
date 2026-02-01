@@ -10,6 +10,7 @@ export namespace ppnt::http {
 
 
     struct HttpRequest : public NonCopy {
+        std::string protocol = "http";
         std::string method = Method::GET;
         std::string path = "/";
         HttpHeaderList headers{};
@@ -34,7 +35,9 @@ export namespace ppnt::http {
         [[nodiscard]]
         auto serialize_to_h1() const -> std::vector<uint8_t> {
             auto writer = io::BinartWriter{};
-            writer.reserve(512 + body->size());
+            if (body) {
+                writer.reserve(512 + body->size());
+            }
             writer.write_string(std::format("{} {} HTTP/1.1\r\n", method, path));
             auto has_content_length = false;
             auto has_host = false;

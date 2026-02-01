@@ -43,6 +43,7 @@ export namespace boringssl {
     using ::TLS_client_method;
     using ::TLS_server_method;
     using ::SSL_CTX_set_min_proto_version;
+    using ::SSL_CTX_set_max_proto_version;
     using ::SSL_do_handshake;
     using ::SSL_set_tlsext_host_name;
     using ::BIO_new_bio_pair;
@@ -54,6 +55,9 @@ export namespace boringssl {
     using ::SSL_set_ex_data;
     using ::SSL_set_client_hello_interceptor;
     using ::CRYPTO_EX_DATA;
+    using ::SSL_set_alpn_protos;
+    using ::SSL_CTX_set_cipher_list;
+    using ::SSL_get0_alpn_selected;
 
     // BIO Functions
     using ::BIO_new;
@@ -115,4 +119,5 @@ export namespace boringssl {
     constexpr inline int EVP_PKEY_EC_ = EVP_PKEY_EC;
 
     constexpr inline int tls1_2_version = TLS1_2_VERSION;
+    constexpr inline int tls1_3_version = TLS1_3_VERSION;
 }

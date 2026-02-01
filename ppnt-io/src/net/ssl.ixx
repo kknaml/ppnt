@@ -51,15 +51,23 @@ export namespace ppnt::net {
             return *this;
         }
 
-        static auto client() -> Result<TlsContext> {
+        static auto client(ClientHelloSpecFactory *spec_factory = nullptr) -> Result<TlsContext> {
             auto *method = boringssl::TLS_client_method();
             auto *ctx = boringssl::SSL_CTX_new(method);
             if (!ctx) {
                 return std::unexpected{Error{std::make_error_code(std::errc::protocol_error)}};
             }
+            if (spec_factory != nullptr) {
+                // auto spec = spec_factory->get_tls_spec();
+                // TODO apply spec
+            }
+            if (boringssl::SSL_CTX_set_cipher_list(ctx, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH") != 1) {
+                return make_err_result(std::errc::wrong_protocol_type, "SSL_CTX_set_cipher_list ALL failed");
+            }
             boringssl::SSL_CTX_set_min_proto_version(ctx,boringssl::tls1_2_version);
+            boringssl::SSL_CTX_set_max_proto_version(ctx,boringssl::tls1_3_version);
             boringssl::SSL_CTX_set_grease_enabled(ctx, 1);
-            return TlsContext(ctx, nullptr);
+            return TlsContext(ctx, spec_factory);
         }
 
         [[nodiscard]]
@@ -110,6 +118,16 @@ export namespace ppnt::net {
             if (!raw_ssl) {
                 co_return std::unexpected{Error{std::make_error_code(std::errc::not_enough_memory), "tls connect"}};
             }
+            {
+                static const std::vector<uint8_t> alpn = {
+                    0x02, 'h', '2',
+                    0x08, 'h', 't', 't', 'p', '/', '1', '.', '1'
+                };
+                auto ret = boringssl::SSL_set_alpn_protos(raw_ssl, alpn.data(), alpn.size());
+                if (ret != 0) {
+                    co_return make_err_result(std::errc::invalid_argument, "SSL_set_alpn_protos");
+                }
+            }
             // auto *spec = create_hello_spec_factory(make_test_spec);
             auto *spec = ctx.get_spec_factory();
             boringssl::SSL_set_ex_data(raw_ssl, detail::get_tls_spec_slot(), static_cast<void *>(spec));
@@ -136,7 +154,18 @@ export namespace ppnt::net {
                 return boringssl::SSL_do_handshake(ssl);
             };
             auto res = co_await run_ssl_op(op);
-            if (res) co_return {};
+            if (res) {
+                const unsigned char *alpn{nullptr};
+                unsigned int alpn_len{0};
+                boringssl::SSL_get0_alpn_selected(ssl_.get(), &alpn, &alpn_len);
+                if (alpn_len > 0) {
+                    auto str = std::string_view{reinterpret_cast<const char *>(alpn), alpn_len};
+                    log::info({"Negotiated Protocol: {}"}, str);
+                } else {
+                    log::info({"Negotiated Protocol not found"});
+                }
+                co_return {};
+            }
             co_return std::unexpected{res.error()};
         }
 
@@ -162,6 +191,14 @@ export namespace ppnt::net {
             if (!res) co_return std::unexpected{res.error()};
             // TODO inner.close
             co_return {};
+        }
+
+        auto is_alive() const noexcept -> bool {
+            return true; // TODO
+        }
+
+        auto close() -> void {
+            // TODO
         }
 
     private:
