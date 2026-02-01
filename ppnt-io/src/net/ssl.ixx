@@ -86,6 +86,8 @@ export namespace ppnt::net {
         }
     };
 
+    auto is_h2_negotiated(boringssl::SSL *ssl) -> bool;
+
     class TlsStream : public NonCopy {
     private:
         TcpStream inner_;
@@ -167,6 +169,10 @@ export namespace ppnt::net {
                 co_return {};
             }
             co_return std::unexpected{res.error()};
+        }
+
+        auto is_h2() const -> bool {
+            return is_h2_negotiated(ssl_.get());
         }
 
         auto read(std::span<uint8_t> buf) -> io::Task<Result<size_t>> {
