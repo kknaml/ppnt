@@ -17,7 +17,8 @@ namespace ppnt::io {
 
     template<typename PrepFn>
     requires std::is_invocable_v<PrepFn, liburing::io_uring_sqe *>
-    struct AsyncOp : Operation {
+    struct AsyncOp {
+        Operation operation_{};
         PrepFn prep_;
 
         explicit(false) AsyncOp(PrepFn &&prep) : prep_(std::move(prep)) {}
@@ -25,12 +26,12 @@ namespace ppnt::io {
         auto await_ready() const noexcept -> bool { return false; }
 
         auto await_suspend(std::coroutine_handle<> h) -> void {
-            this->handle = h;
-            Ring::current().submit(*this, prep_);
+            operation_.handle = h;
+            Ring::current().submit(operation_, prep_);
         }
 
         auto await_resume() const noexcept -> int {
-            return this->result;
+            return operation_.result;
         }
     };
 

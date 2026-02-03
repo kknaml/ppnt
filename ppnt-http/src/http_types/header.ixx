@@ -46,7 +46,7 @@ export namespace ppnt::http {
 
         auto set(std::string_view name, std::string_view value) -> void {
             std::erase_if(headers_, [&] (const HttpHeader &h) {
-                return IgnoreCaseEqual::operator()(h.name, name);
+                return ignore_case_equal(h.name, name);
             });
             add(name, value);
         }
@@ -54,7 +54,7 @@ export namespace ppnt::http {
         [[nodiscard]]
         auto get(std::string_view name) const -> std::optional<std::string_view> {
             for (const auto &header : headers_) {
-                if (IgnoreCaseEqual::operator()(header.name, name)) {
+                if (ignore_case_equal(header.name, name)) {
                     return header.value;
                 }
             }

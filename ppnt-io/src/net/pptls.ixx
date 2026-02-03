@@ -34,7 +34,9 @@ export namespace ppnt::net {
     class ClientHelloSpecFactory {
     public:
         constexpr ClientHelloSpecFactory() = default;
+        [[nodiscard]]
         virtual auto get_tls_spec() const -> ClientHelloSpec = 0;
+        [[nodiscard]]
         virtual auto is_global() const -> bool {
             return false;
         }

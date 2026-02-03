@@ -16,7 +16,8 @@ export namespace ppnt::http {
         HttpHeaderList headers{};
         std::optional<std::vector<uint8_t>> body = std::nullopt;
 
-        HttpRequest() {};
+        // gcc internal error when using = default;
+        HttpRequest() {}
 
         HttpRequest(HttpRequest &&other) noexcept
         : method(std::move(other.method)), path(std::move(other.path)),
@@ -44,9 +45,19 @@ export namespace ppnt::http {
 
             for (const auto &[name, value] : headers) {
                 writer.write_string(std::format("{}: {}\r\n", name, value));
-                if (!has_content_length && IgnoreCaseEqual::operator()(name, "content-length")) has_content_length = true;
-                if (!has_host && IgnoreCaseEqual::operator()(name, "host")) has_host = true;
+                if (!has_content_length && ignore_case_equal(name, "content-length")) has_content_length = true;
+                if (!has_host && ignore_case_equal(name, "host")) has_host = true;
             }
+            // std::ranges::for_each(headers, [&](const auto &header) {
+            //     const auto &[name, value] = header;
+            //     writer.write_string(std::format("{}: {}\r\n", name, value));
+            //     if (!has_content_length && ignore_case_equal(name, "content-length")) {
+            //         has_content_length = true;
+            //     }
+            //     if (!has_host && ignore_case_equal(name, "host")) {
+            //         has_host = true;
+            //     }
+            // });
             if (body && !body->empty() && !has_content_length) {
                 writer.write_string(std::format("content-length: {}\r\n", body->size()));
             }

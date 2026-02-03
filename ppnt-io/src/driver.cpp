@@ -21,4 +21,17 @@ namespace ppnt::io {
         return *current_ring;
     }
 
+    auto Ring::arm_eventfd_read() -> void {
+        auto *sqe = liburing::io_uring_get_sqe(&ring_);
+        if (!sqe) {
+            liburing::io_uring_submit(&ring_);
+            sqe = liburing::io_uring_get_sqe(&ring_);
+            if (!sqe) [[unlikely]] {
+                log::error({"io_uring_get_sqe failed"});
+                std::terminate();
+            }
+        }
+        liburing::io_uring_prep_read(sqe, ev_fd_, &ev_buf_, sizeof(ev_fd_), 0);
+        liburing::io_uring_sqe_set_data(sqe, &ev_op_);
+    }
 }

@@ -45,7 +45,8 @@ auto async_main2() -> io::Task<Unit> {
         log::error({"stream connect error: {}"}, stream.error());
         co_return {};
     }
-    auto ctx = net::TlsContext::client();
+    auto spec_factory = net::create_hello_spec_factory(net::make_test_spec);
+    auto ctx = net::TlsContext::client(spec_factory);
     auto tls_res = co_await net::TlsStream::connect(std::move(*stream), std::move(*ctx), "tls.peet.ws");
     if (!tls_res) {
         log::error({"TLS connect failed: {}"}, tls_res.error());

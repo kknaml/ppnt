@@ -44,6 +44,12 @@ export namespace ppnt {
         ~Singleton() = default;
     };
 
+    template<typename T, typename R, typename ...Args>
+    concept Func = std::is_invocable_r_v<R, T, Args...>;
+
+    template<typename T, typename ...Args>
+    concept Action = Func<T, void, Args...>;
+
     template<std::size_t N>
     struct FixedString {
         char buf[N + 1]{};

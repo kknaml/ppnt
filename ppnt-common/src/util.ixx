@@ -5,13 +5,32 @@ import ppnt.traits;
 
 export namespace ppnt {
 
-    struct IgnoreCaseEqual {
+    constexpr auto to_lower_ascii(char c) noexcept -> char {
+        return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + ('a' - 'A')) : c;
+    }
 
-        static auto operator()(std::string_view a, std::string_view b) noexcept -> bool {
+    struct IgnoreCaseEqual {
+        using is_transparent = void;
+        static constexpr auto operator()(std::string_view a, std::string_view b) noexcept -> bool {
             return std::ranges::equal(a, b, [](char a, char b) {
-               return std::tolower(static_cast<unsigned char>(a)) == static_cast<unsigned char>(b);
+               return to_lower_ascii(a) == to_lower_ascii(b);
             });
         }
     };
+
+    struct IgnoreCaseHash {
+        using is_transparent = void;
+
+        constexpr auto operator()(std::string_view txt) const noexcept -> size_t {
+            size_t h = 14695981039346656037ULL;
+            for (char c : txt) {
+                h ^= static_cast<size_t>(to_lower_ascii(c));
+                h *= 1099511628211ULL;
+            }
+            return h;
+        }
+    };
+
+    constexpr inline IgnoreCaseEqual ignore_case_equal{};
 }
 
