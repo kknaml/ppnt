@@ -99,4 +99,31 @@ namespace ppnt::io {
         }};
     }
 
+    export auto async_timeout_raw(const liburing::__kernel_timespec *ts, unsigned count, unsigned flags) {
+        return AsyncOp{[=](liburing::io_uring_sqe *sqe) {
+           liburing::io_uring_prep_timeout(sqe, ts, count, flags);
+        }};
+    }
+
+    export auto delay(liburing::__kernel_timespec ts) {
+        return DelegateOpAwaiter(AsyncOp{[=](liburing::io_uring_sqe *sqe) {
+            liburing::io_uring_prep_timeout(sqe, &ts, 0, 0);
+        }}, [](int ret) -> Result<Unit> {
+            if (ret == -libc::e_time) {
+                return {};
+            }
+            if (ret == -libc::e_canceled) {
+                return make_err_result(std::errc::operation_canceled, "delay canceled");
+            }
+            return make_err_result(std::errc::no_message, std::format("delay failed: {}", ret));
+        });
+    }
+
+    export auto delay(long ms) {
+        liburing::__kernel_timespec ts;
+        ts.tv_sec = ms / 1000;
+        ts.tv_nsec = (ms % 1000) * 1000000;
+        return delay(ts);
+    }
+
 }

@@ -9,7 +9,7 @@ target_sources(
         FILES ${PPNT_IO_MODULES}
 )
 
-target_link_libraries(ppnt-io PUBLIC ppnt-common liburing-wrapper boringssl-wrapper liburing)
+target_link_libraries(ppnt-io PUBLIC ppnt-common liburing-wrapper boringssl-wrapper thread_pool_wrapper liburing)
 
 
 set(USER_LINK_LIBS ppnt-io)

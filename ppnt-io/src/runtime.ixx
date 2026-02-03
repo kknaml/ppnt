@@ -89,13 +89,13 @@ namespace ppnt::io {
             }
 
             auto await_resume() noexcept -> Result<T> {
-                if (err_) {
+                if (err_) [[unlikely]] {
                     try {
                         std::rethrow_exception(err_);
                     } catch (std::exception &e) {
-                        return make_err_result(std::errc::no_message, e.what());
+                        return make_err_result(std::errc::interrupted, e.what());
                     } catch (...) {
-                        return make_err_result(std::errc::no_message, "run_in_pool err");
+                        return make_err_result(std::errc::interrupted, "run_in_pool unknown err");
                     }
                 }
                 return std::move(*res_);
@@ -103,8 +103,8 @@ namespace ppnt::io {
         };
     }
 
-    template<typename T, typename Pool>
-    auto run_in_pool(Pool *pool, Func<T> auto &&fn) -> detail::RunInPoolAwaiter<T, decltype(fn), Pool> {
-        return detail::RunInPoolAwaiter<T, decltype(fn), Pool>{pool, fn};
+    export template<typename Pool>
+    auto run_in_pool(Pool &pool, auto &&fn) -> Awaiterble<Result<std::invoke_result_t<decltype(fn)>>> auto {
+        return detail::RunInPoolAwaiter<std::invoke_result_t<decltype(fn)>, decltype(fn), Pool>(&pool, std::forward<decltype(fn)>(fn));
     }
 }

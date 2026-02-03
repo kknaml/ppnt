@@ -23,3 +23,5 @@ add_subdirectory(nghttp2)
 add_subdirectory(nghttp2-wrapper)
 
 add_subdirectory(liburing-wrapper)
+
+add_subdirectory(thread_pool_wrapper)

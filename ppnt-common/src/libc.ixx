@@ -6,6 +6,7 @@ export import :socket;
 export import :fcntl;
 export import :unistd;
 export import :event;
+export import :err;
 
 export namespace ppnt::libc {
 
