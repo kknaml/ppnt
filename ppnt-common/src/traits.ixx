@@ -92,6 +92,8 @@ export namespace ppnt {
           (!HasAwaitTransform<Promise, T> && HasAwaiterMembers<T, Promise, R>)
         ));
 
+    auto drop(auto val) -> void {}
+
     template<typename T>
     concept HasToString = requires(T &t) {
         { t.to_string() } -> std::convertible_to<std::string>;

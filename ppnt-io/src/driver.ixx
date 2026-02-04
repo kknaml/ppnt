@@ -8,9 +8,17 @@ import ppnt.traits;
 
 namespace ppnt::io {
 
-    export struct Operation {
+    export struct alignas(8) Operation {
         std::coroutine_handle<> handle{nullptr};
-        std::int32_t result{0};
+        struct {
+            uint32_t ref_count : 16 {1};
+            uint32_t is_timeout : 1 {0};
+            uint32_t is_cancelled : 1 {0};
+            uint32_t is_write : 1 {0};
+            uint32_t reserved : 13 {0};
+        } state;
+        int32_t result{0};
+        uint32_t timeout_ms{0};
     };
 
     export class Ring : public NonCopy {

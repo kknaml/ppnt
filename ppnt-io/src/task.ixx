@@ -149,6 +149,7 @@ namespace ppnt::io {
     }
 
     template<typename T>
+    [[nodiscard]]
     class Task final : NonCopy {
     public:
         using promise_type = detail::TaskPromise<T>;
@@ -183,6 +184,7 @@ namespace ppnt::io {
     };
 
     export template<typename T>
+    [[nodiscard]]
     class JoinHandle final : NonCopy {
         using promise_type = detail::TaskPromise<T>;
         std::coroutine_handle<promise_type> handle;
