@@ -28,7 +28,6 @@ export namespace ppnt::jr {
             context_.Reset();
             event_loop_.reset();
             isolate_->Dispose();
-            delete event_loop_;
         }
 
         auto reset_context() -> void {

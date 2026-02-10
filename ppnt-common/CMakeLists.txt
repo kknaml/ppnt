@@ -9,5 +9,6 @@ target_sources(
     FILES ${PPNT_COMMON_MODULES}
 )
 
+# set(USER_LINK_LIBS ppnt-common v8 v8_monolith v8_rust_shim "-Wl,--start-group" ${V8_RUST_LIBS_LIST} "-Wl,--end-group" boringssl-wrapper pthread dl)
 set(USER_LINK_LIBS ppnt-common v8 v8_monolith v8_rust_shim "-Wl,--start-group" ${V8_RUST_LIBS_LIST} "-Wl,--end-group" boringssl-wrapper pthread dl)
 include(../build_bins.cmake)

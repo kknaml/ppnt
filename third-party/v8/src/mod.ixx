@@ -5,6 +5,13 @@ module;
 
 export module v8;
 
+export namespace v8 {
+    using ::v8::FunctionCallbackInfo;
+    using ::v8::FunctionCallback;
+    using ::v8::EscapableHandleScope;
+
+}
+
 // region "v8-array-buffer.h"
 export namespace v8 {
     using ::v8::ArrayBufferCreationMode;
