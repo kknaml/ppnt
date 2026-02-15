@@ -58,6 +58,7 @@ export namespace boringssl {
     using ::SSL_set_alpn_protos;
     using ::SSL_CTX_set_cipher_list;
     using ::SSL_get0_alpn_selected;
+    using ::SSL_get_shutdown;
 
     // BIO Functions
     using ::BIO_new;
@@ -112,6 +113,8 @@ export namespace boringssl {
 
     constexpr inline int SSL_FILETYPE_PEM_ = SSL_FILETYPE_PEM;
     constexpr inline int SSL_FILETYPE_ASN1_ = SSL_FILETYPE_ASN1;
+
+    constexpr inline int SSL_RECEIVED_SHUTDOWN_ = SSL_RECEIVED_SHUTDOWN;
 
     constexpr inline int X509_V_OK_ = X509_V_OK;
 

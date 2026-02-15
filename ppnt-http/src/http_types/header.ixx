@@ -3,6 +3,7 @@ export module ppnt.http.http_types:header;
 import std;
 import ppnt.traits;
 import ppnt.util;
+import :version;
 
 export namespace ppnt::http {
 
@@ -89,6 +90,14 @@ export namespace ppnt::http {
 
         auto reserve(std::size_t size) -> void {
             headers_.reserve(size);
+        }
+
+        auto to_string() const -> std::string {
+            std::string result;
+            for (const auto &header : headers_) {
+                result += std::format("{}:{}\n", header.name, header.value);
+            }
+            return result;
         }
     };
 }

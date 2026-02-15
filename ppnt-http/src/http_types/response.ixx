@@ -5,6 +5,7 @@ import ppnt.traits;
 import ppnt.io.task;
 import ppnt.err;
 import :header;
+import :version;
 
 export namespace ppnt::http {
 
@@ -17,27 +18,31 @@ export namespace ppnt::http {
         }
     };
 
+    struct HeadParts {
+        HttpStatus status{};
+        Version version{Version::HTTP_11};
+        HttpHeaderList headers{};
+    };
+
     template<typename Session>
     class HttpResponse : public NonCopy {
     public:
        friend Session;
     private:
         Session *session_;
-        HttpStatus http_status_{};
-        HttpHeaderList headers_{};
+        HeadParts head_{};
         int id_{-1};
     public:
         explicit HttpResponse(Session *session) : session_{session} {}
         HttpResponse() : session_{nullptr} {}
 
         HttpResponse(HttpResponse &&other) noexcept : session_(std::exchange(other.session_, nullptr)),
-            http_status_(std::move(other.get_status())), headers_(std::move(other.headers_)), id_(std::exchange(other.id_, -1)) {}
+            head_(std::move(other.head_)), id_(std::exchange(other.id_, -1)) {}
 
-        auto operator=(HttpResponse &&other) -> HttpResponse & {
+        auto operator=(HttpResponse &&other) noexcept -> HttpResponse & {
             if (this != &other) {
                 session_ = std::exchange(other.session_, nullptr);
-                http_status_ = other.http_status_;
-                headers_ = std::move(other.headers_);
+                head_ = std::move(other.head_);
                 id_ = std::exchange(other.id_, -1);
             }
             return *this;
@@ -47,7 +52,7 @@ export namespace ppnt::http {
             return session_;
         }
 
-        auto set_session(Session *session) noexcept -> Session * {
+        auto set_session(Session *session) noexcept -> void {
             session_ = session;
         }
 
@@ -55,12 +60,12 @@ export namespace ppnt::http {
             return std::forward_like<decltype(self)>(self.headers_);
         }
 
-        auto get_status() noexcept -> HttpStatus {
-            return http_status_;
+        auto get_status() const noexcept -> const HttpStatus & {
+            return head_.status;
         }
 
         auto set_status(HttpStatus status) noexcept -> void {
-            http_status_ = status;
+            head_.status = std::move(status);
         }
 
         auto body_full() -> io::Task<Result<std::vector<uint8_t>>> {
@@ -69,9 +74,9 @@ export namespace ppnt::http {
 
         auto to_string() const -> std::string {
             auto result = std::string{};
-            result += std::format("{}", http_status_);
+            result += std::format("{}", head_.status);
             result += "\n";
-            for (const auto &header : this->headers_) {
+            for (const auto &header : this->head_.headers) {
                 result += std::format("{}: {}\n", header.name, header.value);
             }
             result += "\n";

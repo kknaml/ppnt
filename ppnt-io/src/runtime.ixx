@@ -107,4 +107,34 @@ namespace ppnt::io {
     auto run_in_pool(Pool &pool, auto &&fn) -> Awaiterble<Result<std::invoke_result_t<decltype(fn)>>> auto {
         return detail::RunInPoolAwaiter<std::invoke_result_t<decltype(fn)>, decltype(fn), Pool>(&pool, std::forward<decltype(fn)>(fn));
     }
+
+    namespace detail {
+        export template<typename T, typename F>
+        struct SuspendCoroutineAwaiter {
+            using return_type = Regularized<T>;
+            F func_ ;
+            std::optional<return_type> result_{};
+            constexpr auto await_ready() const noexcept -> bool {
+                return false;
+            }
+
+            auto await_suspend(std::coroutine_handle<> h) noexcept -> void {
+                auto *ring = &Ring::current();
+                auto resume_cb = [this, h, ring](return_type value) {
+                    this->result_ = std::move(value);
+                    ring->post(h);
+                };
+                func_(resume_cb);
+            }
+
+            auto await_resume() const noexcept -> return_type {
+                return std::move(*result_);
+            }
+        };
+    }
+
+    export template<typename T, typename F>
+    auto suspend_coroutine(F &&f) -> auto {
+        return detail::SuspendCoroutineAwaiter<T, std::decay_t<F>>{std::forward<F>(f)};
+    }
 }

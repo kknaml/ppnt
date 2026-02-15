@@ -1,4 +1,4 @@
-export module ppnt.io:binary_util;
+export module ppnt.io.binary_util;
 
 import std;
 import ppnt.traits;

@@ -115,7 +115,7 @@ export namespace ppnt::net {
             return *this;
         }
 
-        static auto connect(TcpStream inner, TlsContext ctx, std::string_view host_name, bool handshake = true) -> io::Task<Result<TlsStream>> {
+        static auto connect(TcpStream inner, TlsContext &ctx, std::string_view host_name, bool handshake = true) -> io::Task<Result<TlsStream>> {
             auto *raw_ssl = boringssl::SSL_new(ctx.native_handle());
             if (!raw_ssl) {
                 co_return std::unexpected{Error{std::make_error_code(std::errc::not_enough_memory), "tls connect"}};
@@ -195,16 +195,21 @@ export namespace ppnt::net {
             };
             auto res = co_await run_ssl_op(op);
             if (!res) co_return std::unexpected{res.error()};
-            // TODO inner.close
+
+            inner_.close();
             co_return {};
         }
 
         auto is_alive() const noexcept -> bool {
-            return true; // TODO
+            if (!inner_.is_alive()) return false;
+            if (boringssl::SSL_get_shutdown(ssl_.get()) & boringssl::SSL_RECEIVED_SHUTDOWN_){
+                return false;
+            }
+            return true;
         }
 
         auto close() -> void {
-            // TODO
+            inner_.close();
         }
 
     private:

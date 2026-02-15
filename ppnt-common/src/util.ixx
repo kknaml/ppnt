@@ -9,6 +9,15 @@ export namespace ppnt {
         return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + ('a' - 'A')) : c;
     }
 
+    constexpr auto to_lower_ascii_str(std::string_view str) -> std::string {
+        std::string result;
+        result.reserve(str.size());
+        for (char c : str) {
+            result += to_lower_ascii(c);
+        }
+        return result;
+    }
+
     struct IgnoreCaseEqual {
         using is_transparent = void;
         static constexpr auto operator()(std::string_view a, std::string_view b) noexcept -> bool {

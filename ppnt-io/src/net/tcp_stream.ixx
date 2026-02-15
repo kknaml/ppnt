@@ -112,7 +112,7 @@ export namespace ppnt::net {
             close_fd(fd_);
         }
 
-        auto is_alive() -> bool {
+        auto is_alive() const -> bool {
             // TODO
             return fd_ != -1;
         }

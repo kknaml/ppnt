@@ -2,10 +2,10 @@ export module ppnt.net.tls;
 
 import std;
 import ppnt.traits;
-import ppnt.io;
 import ppnt.err;
 import boringssl;
 import ppnt.log;
+import ppnt.io.binary_util;
 
 export namespace ppnt::net {
 
