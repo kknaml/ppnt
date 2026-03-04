@@ -41,5 +41,17 @@ export namespace ppnt {
     };
 
     constexpr inline IgnoreCaseEqual ignore_case_equal{};
+
+
+    class Base64 {
+    public:
+        static auto encode(const unsigned char *bytes_to_encode, int in_len) -> std::string;
+        static auto encode(std::string_view str) -> std::string;
+
+        static auto decode(std::string_view encoded_string) -> std::string;
+        static auto decode_bin(std::string_view encoded_string) -> std::vector<uint8_t>;
+    };
+
+
 }
 

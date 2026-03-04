@@ -1,9 +1,8 @@
 export module ppnt.http.http_types:header;
 
 import std;
-import ppnt.traits;
-import ppnt.util;
-import :version;
+import ppnt.common;
+// import :version;
 
 export namespace ppnt::http {
 
@@ -17,8 +16,13 @@ export namespace ppnt::http {
         HttpHeader(std::string name, std::string value) : name(std::move(name)), value(std::move(value)) {}
         HttpHeader(std::string_view name, std::string_view value) : name(name), value(value) {}
 
+        auto operator==(const HttpHeader &other) const -> bool {
+            return ignore_case_equal(name, other.name) && value == other.value;
+        }
+
         template<std::size_t N>
-        auto get() const -> std::string_view {
+        [[nodiscard]]
+        auto get() const -> const std::string & {
             if constexpr (N == 0) return (name);
             else if constexpr (N == 1) return (value);
             else static_assert(false);
@@ -41,8 +45,16 @@ export namespace ppnt::http {
             return *this;
         }
 
+        auto operator==(const HttpHeaderList &other) const -> bool {
+            return headers_ == other.headers_;
+        }
+
         auto add(std::string_view name, std::string_view value) -> void {
             headers_.emplace_back(name, value);
+        }
+
+        auto add(HttpHeader header) -> void {
+            headers_.emplace_back(std::move(header));
         }
 
         auto set(std::string_view name, std::string_view value) -> void {

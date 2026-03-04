@@ -1,12 +1,11 @@
 export module ppnt.http.http2;
 
 import std;
+import ppnt.common;
 import ppnt.http.http_types;
-import ppnt.traits;
-import ppnt.err;
 import nghttp2;
 import ppnt.io.task;
-import ppnt.log;
+import ppnt.http.session_key;
 
 export namespace ppnt::http {
 
@@ -31,9 +30,27 @@ export namespace ppnt::http {
         std::map<int32_t, std::shared_ptr<Http2StreamContext>> streams_{};
         bool should_close_{false};
 
+        SessionKey session_key_;
+
     public:
-        explicit Http2Session(C connection) : connection_{std::move(connection)} {
+        explicit Http2Session(C connection, SessionKey session_key)
+        : connection_{std::move(connection)}, session_key_(std::move(session_key)) {
             init();
+        }
+
+        Http2Session(Http2Session &&other) noexcept : connection_(std::move(other.connection_)),
+        session_(std::exchange(other.session_, nullptr)), streams_(std::move(other.streams_)),
+        should_close_(other.should_close_) {
+        }
+
+        auto operator=(Http2Session &&other) noexcept -> Http2Session & {
+            if (this != &other) {
+                this->connection_ = std::move(other.connection_);
+                this->session_ = std::exchange(other.session_, nullptr);
+                this->streams_ = std::move(other.streams_);
+                this->should_close_ = other.should_close_;
+            }
+            return *this;
         }
 
         ~Http2Session() {
@@ -108,6 +125,22 @@ export namespace ppnt::http {
             auto data = std::move(ctx->body_buffer);
             streams_.erase(stream_id);
             co_return data;
+        }
+
+        [[nodiscard]]
+       auto is_valid() const -> bool {
+            // TODO
+            return true;
+        }
+
+        [[nodiscard]]
+        auto get_http_version() const -> Version {
+            return Version::HTTP_2;
+        }
+
+        [[nodiscard]]
+        auto get_session_key() const -> const SessionKey & {
+            return session_key_;
         }
 
     private:

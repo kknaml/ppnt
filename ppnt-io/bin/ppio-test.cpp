@@ -72,7 +72,7 @@ auto async_main() -> io::Task<int> {
 auto https_demo() -> io::Task<int> {
     auto stream = co_await net::TcpStream::connect("tls.peet.ws", 443);
     auto ctx = net::TlsContext::client();
-    auto tls_res = co_await net::TlsStream::connect(std::move(*stream), std::move(*ctx), "tls.peet.ws");
+    auto tls_res = co_await net::TlsStream::connect(std::move(*stream), *ctx, "tls.peet.ws");
     if (!tls_res) {
         log::error({"TLS connect failed: {}"}, tls_res.error());
         co_return 10;

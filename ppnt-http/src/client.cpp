@@ -57,39 +57,39 @@ namespace ppnt::http {
     // }
     
     auto HttpClient::connect_to_remote(const std::string &host, int port, bool is_tls) -> io::Task<Result<BoxedStream>> {
-        std::string target_host = config_.proxy ? config_.proxy->host : host;
-        int target_port = config_.proxy ? config_.proxy->port : port;
-
-        // 1. TCP
-        auto tcp_res = co_await TcpStream::connect(target_host, target_port);
-        if (!tcp_res) co_return std::unexpected{tcp_res.error()};
-        TcpStream tcp = std::move(*tcp_res);
-
-        // 2. Proxy Connect (Tunnel)
-        if (config_.proxy && is_tls) {
-            // TODO: Implement CONNECT
-                auto connect_req = std::format("CONNECT {}:{} HTTP/1.1\r\nHost: {}:{}\r\n\r\n", host, port, host, port);
-                auto wres = co_await tcp.write(std::span{reinterpret_cast<const uint8_t*>(connect_req.data()), connect_req.size()});
-                if (!wres) co_return std::unexpected{wres.error()};
-                
-                // Read 200 OK (Simple skip)
-                std::array<uint8_t, 1024> buf;
-                // Ideally read line by line until \r\n\r\n
-                // For now, just read once and hope it contains the full response. 
-                // Production grade needs a proper parser here.
-                auto rres = co_await tcp.read(buf);
-                if (!rres) co_return std::unexpected{rres.error()};
-                // Check if 200...
-        }
-
-        // 3. TLS
-        if (is_tls) {
-            auto tls_res = co_await TlsStream::connect(std::move(tcp), tls_ctx_, host);
-            if (!tls_res) co_return std::unexpected{tls_res.error()};
-            co_return BoxedStream(std::move(*tls_res));
-        }
-        
-        // 4. Plain
-        co_return BoxedStream(std::move(tcp));
+        // std::string target_host = config_.proxy ? config_.proxy->host : host;
+        // int target_port = config_.proxy ? config_.proxy->port : port;
+        //
+        // // 1. TCP
+        // auto tcp_res = co_await TcpStream::connect(target_host, target_port);
+        // if (!tcp_res) co_return std::unexpected{tcp_res.error()};
+        // TcpStream tcp = std::move(*tcp_res);
+        //
+        // // 2. Proxy Connect (Tunnel)
+        // if (config_.proxy && is_tls) {
+        //     // TODO: Implement CONNECT
+        //         auto connect_req = std::format("CONNECT {}:{} HTTP/1.1\r\nHost: {}:{}\r\n\r\n", host, port, host, port);
+        //         auto wres = co_await tcp.write(std::span{reinterpret_cast<const uint8_t*>(connect_req.data()), connect_req.size()});
+        //         if (!wres) co_return std::unexpected{wres.error()};
+        //
+        //         // Read 200 OK (Simple skip)
+        //         std::array<uint8_t, 1024> buf;
+        //         // Ideally read line by line until \r\n\r\n
+        //         // For now, just read once and hope it contains the full response.
+        //         // Production grade needs a proper parser here.
+        //         auto rres = co_await tcp.read(buf);
+        //         if (!rres) co_return std::unexpected{rres.error()};
+        //         // Check if 200...
+        // }
+        //
+        // // 3. TLS
+        // if (is_tls) {
+        //     auto tls_res = co_await TlsStream::connect(std::move(tcp), tls_ctx_, host);
+        //     if (!tls_res) co_return std::unexpected{tls_res.error()};
+        //     co_return BoxedStream(std::move(*tls_res));
+        // }
+        //
+        // // 4. Plain
+        // co_return BoxedStream(std::move(tcp));
     }
 }

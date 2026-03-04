@@ -13,6 +13,9 @@ export namespace liburing {
     using ::io_uring_params;
     using ::io_uring_probe;
     using ::__kernel_timespec;
+    using ::io_uring_buf_ring;
+    using ::io_uring_buf;
+    using ::io_uring_buf_reg;
 
     // Core functions
     using ::io_uring_queue_init;
@@ -26,6 +29,10 @@ export namespace liburing {
     using ::io_uring_wait_cqes;
     using ::io_uring_peek_batch_cqe;
     using ::io_uring_cqe_seen;
+    using ::io_uring_register_buf_ring;
+    using ::io_uring_buf_ring_init;
+    using ::io_uring_buf_ring_add;
+    using ::io_uring_buf_ring_advance;
 
     // Data helpers
     using ::io_uring_sqe_set_data;
@@ -50,10 +57,17 @@ export namespace liburing {
     using ::io_uring_prep_timeout_remove;
     using ::io_uring_prep_nop;
     using ::io_uring_prep_cancel;
+    using ::io_uring_prep_recv;
+    using ::io_uring_prep_provide_buffers;
+    using ::io_uring_prep_link_timeout;
 
     // CQE Iteration
     using ::io_uring_cq_advance;
     using ::io_uring_cqe_iter;
     using ::io_uring_cqe_iter_init;
     using ::io_uring_cqe_iter_next;
+
+    constexpr int ioring_cqe_f_buffer = IORING_CQE_F_BUFFER;
+    constexpr int iosqe_io_link = IOSQE_IO_LINK;
+    constexpr int iosqe_buffer_select = IOSQE_BUFFER_SELECT;
 }

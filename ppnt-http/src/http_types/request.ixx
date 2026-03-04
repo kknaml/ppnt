@@ -1,10 +1,11 @@
 export module ppnt.http.http_types:request;
 
 import std;
-import ppnt.traits;
+import ppnt.common;
+import ppnt.io;
 import :header;
 import :method;
-import ppnt.io;
+
 
 export namespace ppnt::http {
 

@@ -6,6 +6,7 @@ import ppnt.traits;
 import ppnt.err;
 import llhttp;
 import ppnt.io.task;
+import ppnt.http.session_key;
 
 export namespace ppnt::http {
 
@@ -27,6 +28,11 @@ export namespace ppnt::http {
 
         auto header(std::string_view name, std::string_view value) -> Http1RequestBuilder & {
             req_.headers.add(name, value);
+            return *this;
+        }
+
+        auto header(HttpHeader header) -> Http1RequestBuilder & {
+            req_.headers.add(std::move(header));
             return *this;
         }
 
@@ -58,8 +64,11 @@ export namespace ppnt::http {
         bool headers_complete_{false};
         bool message_complete_{false};
 
+        SessionKey session_key_;
+
     public:
-        explicit Http1Session(C connection) : connection_(std::move(connection)) {
+        explicit Http1Session(C connection, SessionKey session_key)
+        : connection_(std::move(connection)), session_key_(std::move(session_key)) {
             this->init();
         }
 
@@ -124,8 +133,28 @@ export namespace ppnt::http {
             co_return std::move(this->body_buffer_);
         }
 
+        [[nodiscard]]
+        auto is_valid() const -> bool {
+            // TODO
+            return true;
+        }
+
+        [[nodiscard]]
+        auto get_http_version() const -> Version {
+            return Version::HTTP_11;
+        }
+
+        [[nodiscard]]
+        auto get_session_key() const -> const SessionKey & {
+            return session_key_;
+        }
+
         auto close() -> void {
             connection_.close();
+        }
+
+        auto leak_stream() && -> C {
+            return std::move(connection_);
         }
 
     private:

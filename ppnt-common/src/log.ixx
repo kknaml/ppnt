@@ -71,7 +71,7 @@ export namespace ppnt::log {
     template<Level level, typename... Args>
     void log_impl(FmtLoc<Args...> wrapper, Args &&...args) {
         // Use system_clock directly, let std::format handle the string conversion efficiently
-        auto now = std::chrono::time_point_cast<std::chrono::seconds>(std::chrono::system_clock::now());
+        auto now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now());
         
         std::string_view full_path = wrapper.loc.file_name();
         auto filename = full_path.substr(full_path.find_last_of("/\\") + 1);

@@ -1,13 +1,15 @@
 export module ppnt.io.task;
 
 import std;
-import ppnt.traits;
-import ppnt.log;
+import ppnt.common;
 
 namespace ppnt::io {
 
     export template<typename T = void>
     class Task;
+
+    export template<typename T>
+    using TaskResult = Task<Result<T>>;
 
     export template<typename T>
     class JoinHandle;

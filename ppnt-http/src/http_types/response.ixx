@@ -1,9 +1,8 @@
 export module ppnt.http.http_types:response;
 
 import std;
-import ppnt.traits;
+import ppnt.common;
 import ppnt.io.task;
-import ppnt.err;
 import :header;
 import :version;
 
@@ -57,7 +56,7 @@ export namespace ppnt::http {
         }
 
         auto get_headers(this auto &&self) -> decltype(auto) {
-            return std::forward_like<decltype(self)>(self.headers_);
+            return std::forward_like<decltype(self)>(self.head_.headers);
         }
 
         auto get_status() const noexcept -> const HttpStatus & {

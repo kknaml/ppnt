@@ -61,11 +61,15 @@ export namespace ppnt::net {
             co_return co_await TcpStream::connect(addrs->front());
         }
 
-        auto read(std::span<uint8_t> buf) {
+        auto read(std::span<uint8_t> buf) const {
             return io::async_read(fd_, buf.data(), buf.size());
         }
 
-        auto write(std::span<const uint8_t> buf) {
+        auto read_bs(int nbytes, uint32_t flags = 0, uint32_t timeout_ms = 0) const {
+            return io::async_recv_bs(fd_, nbytes, flags, timeout_ms);
+        }
+
+        auto write(std::span<const uint8_t> buf) const {
             return io::async_write(fd_, buf.data(), buf.size());
         }
 
@@ -84,7 +88,7 @@ export namespace ppnt::net {
             co_return {};
         }
 
-        auto write_all(std::span<const uint8_t> buf) -> io::Task<Result<Unit>> {
+        auto write_all(std::span<const uint8_t> buf) const -> io::Task<Result<Unit>> {
             size_t total_written = 0;
             while (total_written < buf.size()) {
                 auto res = co_await this->write(buf.subspan(total_written));
@@ -110,11 +114,12 @@ export namespace ppnt::net {
 
         auto close() {
             close_fd(fd_);
+            fd_ = -1;
         }
 
         auto is_alive() const -> bool {
             // TODO
-            return fd_ != -1;
+            return fd_ >= 0;
         }
     };
 }

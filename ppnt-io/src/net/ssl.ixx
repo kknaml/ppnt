@@ -88,14 +88,15 @@ export namespace ppnt::net {
 
     auto is_h2_negotiated(boringssl::SSL *ssl) -> bool;
 
+    template<typename Inner = TcpStream>
     class TlsStream : public NonCopy {
     private:
-        TcpStream inner_;
+        Inner inner_;
         UniqueSsl ssl_;
         UniqueBio network_bio_;
         std::vector<uint8_t> io_buffer_;
 
-        TlsStream(TcpStream inner, UniqueSsl ssl, boringssl::BIO *network_bio)
+        TlsStream(Inner inner, UniqueSsl ssl, boringssl::BIO *network_bio)
             : inner_(std::move(inner)), ssl_(std::move(ssl)), network_bio_(network_bio) {
             io_buffer_.resize(16384);
         }
@@ -115,7 +116,7 @@ export namespace ppnt::net {
             return *this;
         }
 
-        static auto connect(TcpStream inner, TlsContext &ctx, std::string_view host_name, bool handshake = true) -> io::Task<Result<TlsStream>> {
+        static auto connect(Inner inner, TlsContext &ctx, std::string_view host_name, bool handshake = true) -> io::Task<Result<TlsStream>> {
             auto *raw_ssl = boringssl::SSL_new(ctx.native_handle());
             if (!raw_ssl) {
                 co_return std::unexpected{Error{std::make_error_code(std::errc::not_enough_memory), "tls connect"}};
@@ -273,16 +274,28 @@ export namespace ppnt::net {
         }
 
         auto fill_bio_from_tcp() -> io::Task<Result<size_t>> {
-            auto res = co_await inner_.read(std::span{io_buffer_});
-            if (!res) co_return std::unexpected{res.error()};
-            auto n = *res;
-            if (n > 0) {
-                auto written = boringssl::BIO_write(network_bio_.get(), io_buffer_.data(), n);
-                if (written != n) [[unlikely]] {
-                    log::error({"CRITICAL DATA LOSS: Read {} bytes from TCP but only wrote {} to BIO"}, n, written);
+            // auto res = co_await inner_.read(std::span{io_buffer_});
+            // if (!res) co_return std::unexpected{res.error()};
+            // auto n = *res;
+            // if (n > 0) {
+            //     auto written = boringssl::BIO_write(network_bio_.get(), io_buffer_.data(), n);
+            //     if (written != n) [[unlikely]] {
+            //         log::error({"CRITICAL DATA LOSS: Read {} bytes from TCP but only wrote {} to BIO"}, n, written);
+            //     }
+            // }
+            // co_return n;
+            auto res = co_await inner_.read_bs(4096);
+            if (!res) {
+                co_return std::unexpected{Error{std::error_code(-res.result, std::generic_category())}};
+            }
+            if (res.result > 0) {
+                auto written = boringssl::BIO_write(network_bio_.get(), res.buffer, res.result);
+                if (written != res.result) [[unlikely]] {
+                    log::error({"CRITICAL DATA LOSS: Read {} bytes from TCP but only wrote {} to BIO"}, res.result, written);
+                    co_return make_err_result(std::errc::broken_pipe, "CRITICAL DATA LOSS");
                 }
             }
-            co_return n;
+            co_return res.result;
         }
     };
 
