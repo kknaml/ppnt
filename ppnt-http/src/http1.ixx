@@ -77,7 +77,11 @@ export namespace ppnt::http {
             body_buffer_(std::move(other.body_buffer_)), response_(std::move(other.response_)),
             temp_header_name_(std::move(other.temp_header_name_)), temp_header_value_(std::move(other.temp_header_value_)),
             last_was_value_(other.last_was_value_), headers_complete_(other.headers_complete_),
-            message_complete_(other.message_complete_) {}
+            message_complete_(other.message_complete_), session_key_(std::move(other.session_key_)) {
+            parser_.settings = &settings_;
+            parser_.data = this;
+            response_.set_session(this);
+        }
 
         auto operator=(Http1Session &&other) -> Http1Session & {
             if (this != &other) {
@@ -91,6 +95,11 @@ export namespace ppnt::http {
                 last_was_value_ = other.last_was_value_;
                 headers_complete_ = other.headers_complete_;
                 message_complete_ = other.message_complete_;
+                session_key_ = std::move(other.session_key_);
+
+                parser_.settings = &settings_;
+                parser_.data = this;
+                response_.set_session(this);
             }
             return *this;
         }
@@ -99,11 +108,11 @@ export namespace ppnt::http {
             reset_state();
             auto payload = request.serialize_to_h1();
 
-            auto res = co_await connection_.write(payload);
+            auto res = co_await connection_.write(payload, request.timeout.write_timeout);
             if (!res) co_return std::unexpected{res.error()};
             std::array<uint8_t, 4096> buf{};
             while (!headers_complete_) {
-                auto read_res = co_await connection_.read(buf);
+                auto read_res = co_await connection_.read(buf, request.timeout.read_timeout);
                 if (!read_res) co_return std::unexpected{read_res.error()};
                 auto n = *read_res;
                 if (n == 0) break; // EOF
@@ -162,6 +171,13 @@ export namespace ppnt::http {
 
         auto init() -> void {
             llhttp::llhttp_settings_init(&settings_);
+            llhttp::llhttp_init(&parser_, llhttp::llhttp_type::HTTP_RESPONSE, &settings_);
+            set_callback_fn();
+            parser_.data = this;
+            response_ = HttpResponse(this);
+        }
+
+        auto set_callback_fn() -> void {
             settings_.on_message_begin = on_message_begin;
             settings_.on_status = on_status;
             settings_.on_header_field = on_header_field;
@@ -169,10 +185,6 @@ export namespace ppnt::http {
             settings_.on_headers_complete = on_headers_complete;
             settings_.on_body = on_body;
             settings_.on_message_complete = on_message_complete;
-
-            llhttp::llhttp_init(&parser_, llhttp::llhttp_type::HTTP_RESPONSE, &settings_);
-            parser_.data = this;
-            response_ = HttpResponse(this);
         }
 
         auto reset_state() -> void {

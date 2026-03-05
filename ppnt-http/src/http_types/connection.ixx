@@ -15,4 +15,10 @@ export namespace ppnt::http {
         // { c.is_alive() } -> std::convertible_to<bool>;
         { c.close() };
     };
+
+    struct HttpTimeout {
+        uint32_t connection_timeout{5000};
+        uint32_t read_timeout{5000};
+        uint32_t write_timeout{5000};
+    };
 }

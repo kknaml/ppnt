@@ -30,13 +30,13 @@ export namespace ppnt::net {
             return *this;
         }
 
-        static auto connect(SocketAddress addr)-> io::Task<Result<TcpStream>>  {
+        static auto connect(SocketAddress addr, uint32_t timeout_ms = 0)-> io::Task<Result<TcpStream>>  {
             auto fd = libc::socket(addr.family(), libc::sock_stream | libc::sock_nonblock | libc::sock_cloexec, 0);
             if (fd < 0) {
                 co_return std::unexpected{Error{std::error_code(libc::error_no(), std::system_category())}};
             }
             log::info({"connecting to {}"}, addr);
-            auto res = co_await io::async_connect(fd, addr.sockaddr_ptr(), addr.socklen(), 2000);
+            auto res = co_await io::async_connect(fd, addr.sockaddr_ptr(), addr.socklen(), timeout_ms);
             if (!res) {
                 close_fd(fd);
                 auto &cause = res.error();
@@ -47,7 +47,7 @@ export namespace ppnt::net {
             co_return TcpStream(fd);
         }
 
-        static auto connect(std::string_view host, int port) -> io::Task<Result<TcpStream>> {
+        static auto connect(std::string_view host, int port, uint32_t timeout_ms = 0) -> io::Task<Result<TcpStream>> {
             auto addrs = resolve_host(host, port);
             if (!addrs) co_return std::unexpected{addrs.error()};
             if (addrs->empty()) {
@@ -58,19 +58,19 @@ export namespace ppnt::net {
                     }
                 };
             }
-            co_return co_await TcpStream::connect(addrs->front());
+            co_return co_await TcpStream::connect(addrs->front(), timeout_ms);
         }
 
-        auto read(std::span<uint8_t> buf) const {
-            return io::async_read(fd_, buf.data(), buf.size());
+        auto read(std::span<uint8_t> buf, uint32_t timeout_ms = 0) const {
+            return io::async_read(fd_, buf.data(), buf.size(), -1, timeout_ms);
         }
 
         auto read_bs(int nbytes, uint32_t flags = 0, uint32_t timeout_ms = 0) const {
             return io::async_recv_bs(fd_, nbytes, flags, timeout_ms);
         }
 
-        auto write(std::span<const uint8_t> buf) const {
-            return io::async_write(fd_, buf.data(), buf.size());
+        auto write(std::span<const uint8_t> buf, uint32_t timeout_ms = 0) const {
+            return io::async_write(fd_, buf.data(), buf.size(), -1, timeout_ms);
         }
 
         auto read_exact(std::span<uint8_t> buf) -> io::Task<Result<Unit>> {
@@ -88,10 +88,10 @@ export namespace ppnt::net {
             co_return {};
         }
 
-        auto write_all(std::span<const uint8_t> buf) const -> io::Task<Result<Unit>> {
+        auto write_all(std::span<const uint8_t> buf, uint32_t timeout_ms = 0) const -> io::Task<Result<Unit>> {
             size_t total_written = 0;
             while (total_written < buf.size()) {
-                auto res = co_await this->write(buf.subspan(total_written));
+                auto res = co_await this->write(buf.subspan(total_written), timeout_ms);
                 if (!res) co_return std::unexpected{res.error()};
                 auto n = *res;
                 if (n == 0) {

@@ -151,14 +151,14 @@ namespace ppnt::io {
     DelegateOpAwaiter(Inner, AwaitResume) -> DelegateOpAwaiter<Inner, AwaitResume>;
 
 
-    export auto async_read_raw(int fd, void *buf, unsigned nbytes, uint64_t offset = -1) {
+    export auto async_read_raw(int fd, void *buf, unsigned nbytes, uint64_t offset = -1, uint32_t timeout_ms = 0) {
         return make_op([=](liburing::io_uring_sqe *sqe) {
             liburing::io_uring_prep_read(sqe, fd, buf, nbytes, offset);
-        });
+        }, timeout_ms);
     }
 
-    export auto async_read(int fd, void *buf, unsigned nbytes, uint64_t offset = -1) {
-        return DelegateOpAwaiter(async_read_raw(fd, buf, nbytes, offset), detail::map_async_read_result);
+    export auto async_read(int fd, void *buf, unsigned nbytes, uint64_t offset = -1, uint32_t timeout_ms = 0) {
+        return DelegateOpAwaiter(async_read_raw(fd, buf, nbytes, offset, timeout_ms), detail::map_async_read_result);
     }
 
     export auto async_recv_bs(int fd, uint32_t nbytes, uint32_t flags = 0, uint32_t timeout_ms = 0) {
@@ -170,14 +170,14 @@ namespace ppnt::io {
     }
 
 
-    export auto async_write_raw(int fd, const void *buf, unsigned nbytes, uint64_t offset = -1) {
+    export auto async_write_raw(int fd, const void *buf, unsigned nbytes, uint64_t offset = -1, uint32_t timeout_ms = 0) {
         return AsyncOp{[=](liburing::io_uring_sqe *sqe) {
             liburing::io_uring_prep_write(sqe, fd, buf, nbytes, offset);
-        }};
+        }, timeout_ms};
     }
 
-    export auto async_write(int fd, const void *buf, unsigned nbytes, uint64_t offset = -1) {
-        return DelegateOpAwaiter(async_write_raw(fd, buf, nbytes, offset), detail::map_async_write_result);
+    export auto async_write(int fd, const void *buf, unsigned nbytes, uint64_t offset = -1, uint32_t timeout_ms = 0) {
+        return DelegateOpAwaiter(async_write_raw(fd, buf, nbytes, offset, timeout_ms), detail::map_async_write_result);
     }
 
     export auto async_close_raw(int fd) {

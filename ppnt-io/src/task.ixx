@@ -211,6 +211,14 @@ namespace ppnt::io {
         auto operator co_await() noexcept {
             return detail::JoinHandleAwaiter<T>{std::exchange(handle, nullptr)};
         }
+
+        explicit operator bool() const noexcept {
+            return handle != nullptr;
+        }
+
+        auto take_handle() && {
+            return std::exchange(handle, nullptr);
+        }
     };
 
     namespace detail {

@@ -56,7 +56,7 @@ export namespace ppnt::http {
             impl_.close();
         }
 
-        auto request(HttpRequest request) -> io::TaskResult<HttpResponse<AnySession>> override {// 1. 调用具体的实现 (比如 Http1Session::request)
+        auto request(HttpRequest request) -> io::TaskResult<HttpResponse<AnySession>> override {
 
             auto result = co_await impl_.request(std::move(request));
 
@@ -69,8 +69,8 @@ export namespace ppnt::http {
 
 
             outer_resp.set_status(inner_resp.get_status());
+            outer_resp.set_id(inner_resp.get_id());
             outer_resp.get_headers() = std::move(inner_resp).get_headers();
-
 
             co_return outer_resp;
         }
@@ -93,7 +93,7 @@ export namespace ppnt::http {
         }
 
 
-        auto acquire_session(const SessionKey &key) -> io::TaskResult<std::shared_ptr<AnySession>>;
+        auto acquire_session(const SessionKey &key, uint32_t timeout_ms = 0) -> io::TaskResult<std::shared_ptr<AnySession>>;
 
         auto release_h1_session(const SessionKey &key, std::shared_ptr<AnySession> session) -> void;
 

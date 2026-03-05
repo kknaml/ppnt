@@ -8,11 +8,15 @@ namespace ppnt::http {
 
     auto HttpClient::request(HttpRequest req, std::optional<ProxyConfig> proxy_config) -> io::TaskResult<HttpResponse<AnySession>> {
         auto key = SessionKey(req.url.host(), req.url.port_or_default(), req.url.scheme() == "https", std::move(proxy_config));
-        auto session = co_await session_pool_.acquire_session(key);
+        auto session = co_await session_pool_.acquire_session(key, config_.timeout.connection_timeout);
         if (!session) {
             co_return std::unexpected{session.error()};
         }
-        co_return co_await (*session)->request(std::move(req));
+        auto res = co_await (*session)->request(std::move(req));
+        if (res) {
+            session_pool_.release_h1_session(key, std::move(*session));
+        }
+        co_return res;
     }
 
     // auto HttpClient::request(HttpRequest req) -> io::Task<Result<ClientResponse>> {
@@ -65,7 +69,7 @@ namespace ppnt::http {
     //         co_return response;
     // }
     
-    auto HttpClient::connect_to_remote(const std::string &host, int port, bool is_tls) -> io::Task<Result<BoxedStream>> {
+    //auto HttpClient::connect_to_remote(const std::string &host, int port, bool is_tls) -> io::Task<Result<BoxedStream>> {
         // std::string target_host = config_.proxy ? config_.proxy->host : host;
         // int target_port = config_.proxy ? config_.proxy->port : port;
         //
@@ -100,5 +104,5 @@ namespace ppnt::http {
         //
         // // 4. Plain
         // co_return BoxedStream(std::move(tcp));
-    }
+    // }
 }

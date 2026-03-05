@@ -120,5 +120,5 @@ struct std::tuple_size<ppnt::http::HttpHeader> : std::integral_constant<std::siz
 
 template<std::size_t N>
 struct std::tuple_element<N, ppnt::http::HttpHeader> {
-    using type = std::string_view;
+    using type = std::string;
 };

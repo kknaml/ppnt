@@ -40,6 +40,9 @@ export namespace ppnt::net {
         auto host() const -> std::string {
             return host_;
         }
+        auto set_host(std::string_view host) -> void {
+            host_ = host;
+        }
         [[nodiscard]]
         auto path() const -> std::string {
             return path_;

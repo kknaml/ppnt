@@ -66,8 +66,13 @@ export namespace ppnt::http {
             head_.status = std::move(status);
         }
 
+        [[nodiscard]]
         auto get_id() const noexcept -> int {
             return id_;
+        }
+
+        auto set_id(int id) noexcept -> void {
+            id_ = id;
         }
 
         auto body_full() -> io::Task<Result<std::vector<uint8_t>>> {
@@ -81,7 +86,6 @@ export namespace ppnt::http {
             for (const auto &header : this->head_.headers) {
                 result += std::format("{}: {}\n", header.name, header.value);
             }
-            result += "\n";
             return result;
         }
     };

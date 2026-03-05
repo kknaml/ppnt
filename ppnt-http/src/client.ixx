@@ -23,7 +23,8 @@ export namespace ppnt::http {
     struct HttpClientConfig {
         std::optional<ProxyConfig> proxy{};
         bool h2_enabled{true};
-        // Duration connect_timeout...
+
+        HttpTimeout timeout{};
     };
 
 
@@ -43,6 +44,6 @@ export namespace ppnt::http {
         auto request(HttpRequest req, std::optional<ProxyConfig> proxy_config = std::nullopt) -> io::TaskResult<HttpResponse<AnySession>>;
         
     private:
-        auto connect_to_remote(const std::string &host, int port, bool is_tls) -> io::Task<Result<BoxedStream>>;
+        //auto connect_to_remote(const std::string &host, int port, bool is_tls) -> io::Task<Result<BoxedStream>>;
     };
 }

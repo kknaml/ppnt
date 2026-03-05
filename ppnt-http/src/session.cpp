@@ -7,6 +7,7 @@ import ppnt.net.tcp_stream;
 import ppnt.net.addr;
 import ppnt.net.ssl;
 import ppnt.net.tls;
+import ppnt.net.url;
 
 namespace ppnt::http {
 
@@ -15,7 +16,7 @@ namespace ppnt::http {
             return (version == Version::HTTP_11) || (version == Version::HTTP_10);
         }
 
-        auto make_proxy_stream(const ProxyConfig &proxy_config, const SessionKey &key) -> io::TaskResult<net::TcpStream> {
+        auto make_proxy_stream(net::Url target, const ProxyConfig &proxy_config, const SessionKey &key) -> io::TaskResult<net::TcpStream> {
             auto addr = net::resolve_first(proxy_config.host, proxy_config.port);
             if (!addr) {
                 co_return std::unexpected{addr.error()};
@@ -26,18 +27,18 @@ namespace ppnt::http {
             }
             auto tcp_stream = std::move(*tmp);
 
-            auto connect_req_builder = Http1RequestBuilder{};
-            connect_req_builder.method(Method::CONNECT);
+            auto connect_req = HttpRequest{};
+            connect_req.method = Method::CONNECT;
             if (proxy_config.auth) {
-                connect_req_builder.header(proxy_config.auth->basic_header());
+                connect_req.headers.add(proxy_config.auth->basic_header());
             }
             for (const auto &header : proxy_config.headers) {
-                connect_req_builder.header(header);
+                connect_req.headers.add(header);
             }
-            auto req = std::move(connect_req_builder).build();
+            connect_req.url = std::move(target);
 
             auto session = Http1Session<net::TcpStream>(std::move(tcp_stream), key);
-            auto res = co_await session.request(std::move(req));
+            auto res = co_await session.request(std::move(connect_req));
 
             if (!res) {
                 co_return std::unexpected{res.error()};
@@ -48,11 +49,15 @@ namespace ppnt::http {
             co_return make_err_result(std::errc::not_connected, std::format("Proxy connect: {}", res->get_status().code));
         }
 
-        auto session_connect(const SessionKey &key) -> io::TaskResult<std::shared_ptr<AnySession>> {
+        auto session_connect(const SessionKey &key, uint32_t timeout_ms) -> io::TaskResult<std::shared_ptr<AnySession>> {
             net::TcpStream tcp_stream{};
 
             if (key.proxy) {
-                auto tmp = co_await make_proxy_stream(*key.proxy, key);
+                auto target_url = net::Url::parse(std::format("http://{}:{}", key.host, key.port));
+                if (!target_url) {
+                    co_return std::unexpected{target_url.error()};
+                }
+                auto tmp = co_await make_proxy_stream(std::move(*target_url), *key.proxy, key);
                 if (!tmp) {
                     co_return std::unexpected{tmp.error()};
                 }
@@ -62,7 +67,7 @@ namespace ppnt::http {
                 if (!addr) {
                     co_return std::unexpected{addr.error()};
                 }
-                auto tmp = co_await net::TcpStream::connect(*addr);
+                auto tmp = co_await net::TcpStream::connect(*addr, timeout_ms);
                 if (!tmp) {
                     co_return std::unexpected{tmp.error()};
                 }
@@ -76,6 +81,7 @@ namespace ppnt::http {
                 if (!ctx) {
                     co_return std::unexpected{ctx.error()};
                 }
+                // TODO timeout
                 auto tmp = co_await net::TlsStream<>::connect(std::move(tcp_stream), *ctx, key.host, true);
                 if (!tmp) {
                     co_return std::unexpected{tmp.error()};
@@ -95,7 +101,7 @@ namespace ppnt::http {
         }
     }
 
-    auto SessionPool::acquire_session(const SessionKey &key) -> io::TaskResult<std::shared_ptr<AnySession>> {
+    auto SessionPool::acquire_session(const SessionKey &key, uint32_t timeout_ms) -> io::TaskResult<std::shared_ptr<AnySession>> {
         auto &group = sessions_[key];
         if (group.h2_session) {
             if (group.h2_session->is_valid()) {
@@ -113,7 +119,7 @@ namespace ppnt::http {
             }
         }
 
-        auto new_session_ptr = co_await session_connect(key);
+        auto new_session_ptr = co_await session_connect(key, timeout_ms);
         if (!new_session_ptr) co_return std::unexpected{new_session_ptr.error()};
 
         std::shared_ptr<AnySession> shared_session = std::move(*new_session_ptr);

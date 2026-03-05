@@ -176,18 +176,18 @@ export namespace ppnt::net {
             return is_h2_negotiated(ssl_.get());
         }
 
-        auto read(std::span<uint8_t> buf) -> io::Task<Result<size_t>> {
+        auto read(std::span<uint8_t> buf, uint32_t timeout_ms = 0) -> io::Task<Result<size_t>> {
             auto op = [&](boringssl::SSL *ssl) {
                 return boringssl::SSL_read(ssl, buf.data(), static_cast<int>(buf.size()));
             };
-            co_return co_await run_ssl_op(op);
+            co_return co_await run_ssl_op(op, timeout_ms);
         }
 
-        auto write(std::span<const uint8_t> buf) -> io::Task<Result<size_t>> {
+        auto write(std::span<const uint8_t> buf, uint32_t timeout_ms = 0) -> io::Task<Result<size_t>> {
             auto op = [&](boringssl::SSL *ssl) {
                 return boringssl::SSL_write(ssl, buf.data(), static_cast<int>(buf.size()));
             };
-            co_return co_await run_ssl_op(op);
+            co_return co_await run_ssl_op(op, timeout_ms);
         }
 
         auto shutdown() -> io::Task<Result<Unit>> {
@@ -216,25 +216,28 @@ export namespace ppnt::net {
     private:
 
         template<typename Op>
-        auto run_ssl_op(Op &&op) -> io::Task<Result<int>> {
+        auto run_ssl_op(Op &&op, uint32_t timeout_ms = 0) -> io::Task<Result<int>> {
             int ret = 0;
             while (true) {
                 ret = op(ssl_.get());
                 if (ret > 0) {
-                    auto flush_res = co_await flush_bio_to_tcp();
+                    auto flush_res = co_await flush_bio_to_tcp(timeout_ms);
                     if (!flush_res) co_return std::unexpected{flush_res.error()};
                     co_return ret;
                 }
 
                 auto ssl_err = boringssl::SSL_get_error(ssl_.get(), ret);
-                auto flush_res = co_await flush_bio_to_tcp();
+                auto flush_res = co_await flush_bio_to_tcp(timeout_ms);
                 if (!flush_res) co_return std::unexpected{flush_res.error()};
 
                 if (ssl_err == boringssl::SSL_ERROR_WANT_READ_) {
-                    auto fill_res = co_await fill_bio_from_tcp();
+                    auto fill_res = co_await fill_bio_from_tcp(timeout_ms);
                     if (!fill_res) co_return std::unexpected{fill_res.error()};
                     if (*fill_res == 0) {
-                        co_return std::unexpected{Error{std::make_error_code(std::errc::connection_aborted)}};
+                        co_return std::unexpected{Error{
+                            std::make_error_code(std::errc::connection_aborted),
+                            "SSL EOF: Peer closed connection while waiting for TLS record"
+                        }};
                     }
                     continue;
                 } else if (ssl_err == boringssl::SSL_ERROR_WANT_WRITE_) {
@@ -259,7 +262,7 @@ export namespace ppnt::net {
             }
         }
 
-        auto flush_bio_to_tcp() -> io::Task<Result<Unit>> {
+        auto flush_bio_to_tcp(uint32_t timeout_ms) -> io::Task<Result<Unit>> {
             while (true) {
                 auto pending = boringssl::BIO_ctrl_pending(network_bio_.get());
                 if (pending == 0) break;
@@ -267,13 +270,13 @@ export namespace ppnt::net {
                 auto n = boringssl::BIO_read(network_bio_.get(), io_buffer_.data(), static_cast<int>(io_buffer_.size()));
                 if (n <= 0) break;
 
-                auto res = co_await inner_.write_all(std::span{io_buffer_}.first(n));
+                auto res = co_await inner_.write_all(std::span{io_buffer_}.first(n), timeout_ms);
                 if (!res) co_return std::unexpected{res.error()};
             }
             co_return {};
         }
 
-        auto fill_bio_from_tcp() -> io::Task<Result<size_t>> {
+        auto fill_bio_from_tcp(uint32_t timeout_ms) -> io::Task<Result<size_t>> {
             // auto res = co_await inner_.read(std::span{io_buffer_});
             // if (!res) co_return std::unexpected{res.error()};
             // auto n = *res;
@@ -284,7 +287,7 @@ export namespace ppnt::net {
             //     }
             // }
             // co_return n;
-            auto res = co_await inner_.read_bs(4096);
+            auto res = co_await inner_.read_bs(4096, 0, timeout_ms);
             if (!res) {
                 co_return std::unexpected{Error{std::error_code(-res.result, std::generic_category())}};
             }
