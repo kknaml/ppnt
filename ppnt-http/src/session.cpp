@@ -15,7 +15,7 @@ namespace ppnt::http {
             return (version == Version::HTTP_11) || (version == Version::HTTP_10);
         }
 
-        auto make_proxy_stream(const ProxyConfig &proxy_config, SessionKey key) -> io::TaskResult<net::TcpStream> {
+        auto make_proxy_stream(const ProxyConfig &proxy_config, const SessionKey &key) -> io::TaskResult<net::TcpStream> {
             auto addr = net::resolve_first(proxy_config.host, proxy_config.port);
             if (!addr) {
                 co_return std::unexpected{addr.error()};
@@ -36,8 +36,16 @@ namespace ppnt::http {
             }
             auto req = std::move(connect_req_builder).build();
 
-            auto session = Http1Session<net::TcpStream>(std::move(tcp_stream));
+            auto session = Http1Session<net::TcpStream>(std::move(tcp_stream), key);
             auto res = co_await session.request(std::move(req));
+
+            if (!res) {
+                co_return std::unexpected{res.error()};
+            }
+            if (res->get_status().code == 200) {
+                co_return std::move(session).leak_stream();
+            }
+            co_return make_err_result(std::errc::not_connected, std::format("Proxy connect: {}", res->get_status().code));
         }
 
         auto session_connect(const SessionKey &key) -> io::TaskResult<std::shared_ptr<AnySession>> {

@@ -186,14 +186,14 @@ namespace ppnt::io {
         }};
     }
 
-    export auto async_connect_raw(int fd, const libc::sockaddr *addr, libc::socklen_t addrlen) {
+    export auto async_connect_raw(int fd, const libc::sockaddr *addr, libc::socklen_t addrlen, uint32_t timeout_ms = 0) {
         return AsyncOp{[=](liburing::io_uring_sqe *sqe) {
             liburing::io_uring_prep_connect(sqe, fd, addr, addrlen);
-        }};
+        }, timeout_ms};
     }
 
-    export auto async_connect(int fd, const libc::sockaddr *addr, libc::socklen_t addrlen) {
-        return DelegateOpAwaiter(async_connect_raw(fd, addr, addrlen), detail::map_async_connect_result);
+    export auto async_connect(int fd, const libc::sockaddr *addr, libc::socklen_t addrlen, uint32_t timeout_ms = 0) {
+        return DelegateOpAwaiter(async_connect_raw(fd, addr, addrlen, timeout_ms), detail::map_async_connect_result);
     }
 
     //

@@ -29,7 +29,7 @@ export namespace ppnt::http {
         }
     };
 
-    class HttpHeaderList : public NonCopy{
+    class HttpHeaderList {
     private:
         std::vector<HttpHeader> headers_;
     public:
@@ -37,6 +37,7 @@ export namespace ppnt::http {
         HttpHeaderList(std::initializer_list<HttpHeader> headers) : headers_(headers) {}
         HttpHeaderList(HttpHeaderList &&other) noexcept : headers_(std::move(other.headers_)) {
         }
+        HttpHeaderList(const HttpHeaderList &other) = default;
 
         auto operator=(HttpHeaderList &&other) noexcept -> HttpHeaderList & {
             if (this != &other) {

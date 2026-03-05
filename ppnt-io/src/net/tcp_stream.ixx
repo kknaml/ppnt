@@ -1,8 +1,7 @@
 export module ppnt.net.tcp_stream;
 
 import std;
-import ppnt.traits;
-import ppnt.err;
+import ppnt.common;
 import ppnt.libc;
 import ppnt.net.addr;
 import ppnt.io.task;
@@ -36,7 +35,8 @@ export namespace ppnt::net {
             if (fd < 0) {
                 co_return std::unexpected{Error{std::error_code(libc::error_no(), std::system_category())}};
             }
-            auto res = co_await io::async_connect(fd, addr.sockaddr_ptr(), addr.socklen());
+            log::info({"connecting to {}"}, addr);
+            auto res = co_await io::async_connect(fd, addr.sockaddr_ptr(), addr.socklen(), 2000);
             if (!res) {
                 close_fd(fd);
                 auto &cause = res.error();

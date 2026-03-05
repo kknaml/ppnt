@@ -64,8 +64,8 @@ export namespace ppnt::http {
             std::vector<nghttp2::nghttp2_nv> nva{};
             auto &headers = req.headers;
             add_nv(nva, ":method", req.method);
-            add_nv(nva, ":scheme", req.protocol);
-            add_nv(nva, ":path", req.path);
+            add_nv(nva, ":scheme", req.url.scheme());
+            add_nv(nva, ":path", req.url.path());
             if (headers.contains("host")) {
                 add_nv(nva, ":authority", *headers.get("host"));
             }
@@ -104,12 +104,13 @@ export namespace ppnt::http {
             auto resp = HttpResponse(this);
             resp.id_ = stream_id;
             resp.set_status({ctx->status_code});
-            resp.headers_ = std::move(ctx->headers);
+            resp.head_.headers = std::move(ctx->headers);
             co_return resp;
         }
 
-        auto body_full(HttpResponse<Http2Session> &resp) -> io::Task<Result<std::vector<uint8_t>>> {
-            auto stream_id = resp.id_;
+        template<typename Session>
+        auto body_full(HttpResponse<Session> &resp) -> io::Task<Result<std::vector<uint8_t>>> {
+            auto stream_id = resp.get_id();
             auto it = streams_.find(stream_id);
             if (it == streams_.end()) {
                 co_return make_err_result(std::errc::invalid_argument, std::format("h2 body_full Stream id not found: {}", stream_id));
@@ -141,6 +142,10 @@ export namespace ppnt::http {
         [[nodiscard]]
         auto get_session_key() const -> const SessionKey & {
             return session_key_;
+        }
+
+        auto close() -> void {
+            // TODO
         }
 
     private:

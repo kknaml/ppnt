@@ -46,7 +46,6 @@ export namespace ppnt::http {
             }
             return *this;
         }
-
         auto get_session() const noexcept -> Session * {
             return session_;
         }
@@ -65,6 +64,10 @@ export namespace ppnt::http {
 
         auto set_status(HttpStatus status) noexcept -> void {
             head_.status = std::move(status);
+        }
+
+        auto get_id() const noexcept -> int {
+            return id_;
         }
 
         auto body_full() -> io::Task<Result<std::vector<uint8_t>>> {

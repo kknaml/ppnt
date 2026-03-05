@@ -6,6 +6,15 @@ namespace ppnt::http {
 
     HttpClient::HttpClient(Config config) : config_(std::move(config)), tls_ctx_(TlsContext::client().value()) {}
 
+    auto HttpClient::request(HttpRequest req, std::optional<ProxyConfig> proxy_config) -> io::TaskResult<HttpResponse<AnySession>> {
+        auto key = SessionKey(req.url.host(), req.url.port_or_default(), req.url.scheme() == "https", std::move(proxy_config));
+        auto session = co_await session_pool_.acquire_session(key);
+        if (!session) {
+            co_return std::unexpected{session.error()};
+        }
+        co_return co_await (*session)->request(std::move(req));
+    }
+
     // auto HttpClient::request(HttpRequest req) -> io::Task<Result<ClientResponse>> {
     //         // 1. Parse URL (Simplified: assume req has host/port hints or we parse them)
     //         auto host_iter = req.headers.get("host");

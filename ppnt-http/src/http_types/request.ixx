@@ -5,15 +5,13 @@ import ppnt.common;
 import ppnt.io;
 import :header;
 import :method;
-
+import ppnt.net.url;
 
 export namespace ppnt::http {
 
-
     struct HttpRequest : public NonCopy {
-        std::string protocol = "http";
+        net::Url url;
         std::string method = Method::GET;
-        std::string path = "/";
         HttpHeaderList headers{};
         std::optional<std::vector<uint8_t>> body = std::nullopt;
 
@@ -21,13 +19,13 @@ export namespace ppnt::http {
         HttpRequest() {}
 
         HttpRequest(HttpRequest &&other) noexcept
-        : method(std::move(other.method)), path(std::move(other.path)),
+        : method(std::move(other.method)), url(std::move(other.url)),
         headers(std::move(other.headers)), body(std::move(other.body)){}
 
         auto operator=(HttpRequest &&other) noexcept -> HttpRequest & {
             if (this != &other) {
                 method = std::move(other.method);
-                path = std::move(other.path);
+                url = std::move(other.url);
                 headers = std::move(other.headers);
                 body = std::move(other.body);
             }
@@ -40,7 +38,7 @@ export namespace ppnt::http {
             if (body) {
                 writer.reserve(512 + body->size());
             }
-            writer.write_string(std::format("{} {} HTTP/1.1\r\n", method, path));
+            writer.write_string(std::format("{} {} HTTP/1.1\r\n", method, url.path()));
             auto has_content_length = false;
             auto has_host = false;
 

@@ -18,7 +18,7 @@ export namespace ppnt::net {
         std::string user_info_{};
         std::string host_{};
         int port_ {-1};
-        std::string path_{};
+        std::string path_{"/"};
         std::string query_{};
         std::string fragment_{};
    public:
@@ -43,6 +43,9 @@ export namespace ppnt::net {
         [[nodiscard]]
         auto path() const -> std::string {
             return path_;
+        }
+        auto set_path(std::string_view path) -> void {
+            path_ = path;
         }
         [[nodiscard]]
         auto query() const -> std::string {

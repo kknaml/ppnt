@@ -22,7 +22,7 @@ export namespace ppnt::http {
         }
 
         auto path(std::string_view p) -> Http1RequestBuilder & {
-            req_.path = p;
+            req_.url.set_path(p);
             return *this;
         }
 
@@ -48,7 +48,7 @@ export namespace ppnt::http {
     };
 
     template<Connection C>
-    class Http1Session : public NonCopy{
+    class Http1Session : public NonCopy {
     public:
         friend class HttpResponse<Http1Session>;
     private:
@@ -116,7 +116,8 @@ export namespace ppnt::http {
             co_return std::move(this->response_);
         }
 
-        auto body_full(HttpResponse<Http1Session> &resp) -> io::Task<Result<std::vector<uint8_t>>> {
+        template<typename Session>
+        auto body_full(HttpResponse<Session> &resp) -> io::Task<Result<std::vector<uint8_t>>> {
             std::array<uint8_t, 4096> buf{};
             while (!message_complete_) {
                 auto read_res = co_await connection_.read(buf);

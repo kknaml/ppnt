@@ -23,6 +23,10 @@ export namespace ppnt::http {
 
         virtual auto close() -> void = 0;
 
+        virtual auto request(HttpRequest request) -> io::TaskResult<HttpResponse<AnySession>> = 0;
+
+        virtual auto body_full(HttpResponse<AnySession> &resp) -> io::Task<Result<std::vector<uint8_t>>> = 0;
+
         template <typename Impl>
         static auto create(Impl impl) -> std::unique_ptr<AnySession>;
     };
@@ -51,21 +55,54 @@ export namespace ppnt::http {
         auto close() -> void override {
             impl_.close();
         }
+
+        auto request(HttpRequest request) -> io::TaskResult<HttpResponse<AnySession>> override {// 1. 调用具体的实现 (比如 Http1Session::request)
+
+            auto result = co_await impl_.request(std::move(request));
+
+            if (!result) {
+                co_return std::unexpected(result.error());
+            }
+            auto &inner_resp = *result;
+
+            HttpResponse<AnySession> outer_resp(this);
+
+
+            outer_resp.set_status(inner_resp.get_status());
+            outer_resp.get_headers() = std::move(inner_resp).get_headers();
+
+
+            co_return outer_resp;
+        }
+
+        auto body_full(HttpResponse<AnySession> &resp) -> io::Task<Result<std::vector<uint8_t>>> override {
+            return impl_.body_full(resp);
+        }
     };
 
-    class SessionPool {
+    class SessionPool : NonCopy {
 
     public:
+        SessionPool() = default;
+        SessionPool(SessionPool &&others) noexcept : sessions_{std::move(others.sessions_)} {}
+        auto operator=(SessionPool &&others) noexcept -> SessionPool & {
+            if (this != &others) {
+                sessions_ = std::move(others.sessions_);
+            }
+            return *this;
+        }
+
+
         auto acquire_session(const SessionKey &key) -> io::TaskResult<std::shared_ptr<AnySession>>;
 
         auto release_h1_session(const SessionKey &key, std::shared_ptr<AnySession> session) -> void;
 
     private:
         struct HostGroup {
-            std::shared_ptr<AnySession> h2_session;
-            std::deque<std::shared_ptr<AnySession>> h1_idle;
+            std::shared_ptr<AnySession> h2_session{};
+            std::deque<std::shared_ptr<AnySession>> h1_idle{};
         };
-        std::map<SessionKey, HostGroup> sessions_;
+        std::map<SessionKey, HostGroup> sessions_{};
     };
 
 

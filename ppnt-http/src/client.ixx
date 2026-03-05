@@ -13,6 +13,8 @@ import ppnt.traits;
 import ppnt.http.http_types;
 import ppnt.http.proxy;
 import ppnt.log;
+import ppnt.http.session;
+import ppnt.http.session_key;
 
 using namespace ppnt::net;
 
@@ -32,16 +34,13 @@ export namespace ppnt::http {
     private:
         Config config_;
         TlsContext tls_ctx_;
-        // Connection Pools
-        // Key: host, port, is_tls
-        // We need a complex key for pool
-        // Simplified for this example: Just direct connection or basic reuse if I had a pool.
-        // For production, you'd have a map<Key, vector<BoxedStream>>.
+        SessionPool session_pool_;
         
     public:
         explicit HttpClient(Config config = {});
 
         // auto request(HttpRequest req) -> io::Task<Result<ClientResponse>>;
+        auto request(HttpRequest req, std::optional<ProxyConfig> proxy_config = std::nullopt) -> io::TaskResult<HttpResponse<AnySession>>;
         
     private:
         auto connect_to_remote(const std::string &host, int port, bool is_tls) -> io::Task<Result<BoxedStream>>;
