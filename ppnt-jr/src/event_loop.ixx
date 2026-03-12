@@ -6,6 +6,7 @@ import v8;
 import ppnt.traits;
 
 export namespace ppnt::jr {
+    inline constexpr int kEventLoopIsolateDataSlot = 0;
 
     struct TimerKey {
         std::chrono::steady_clock::time_point deadline;
@@ -18,6 +19,9 @@ export namespace ppnt::jr {
 
     struct TimerData {
         v8::Global<v8::Function> callback;
+        std::vector<v8::Global<v8::Value>> args;
+        std::function<void(v8::Local<v8::Context>)> native_task;
+        bool is_native{false};
         bool is_interval;
         long interval_ms;
     };
@@ -47,21 +51,92 @@ export namespace ppnt::jr {
             timer_map_.erase(id);
         }
 
-    private:
-
-        auto schedule(
+        auto set_timeout(
             v8::Local<v8::Function> callback,
             long delay_ms,
-            bool is_interval
+            const std::vector<v8::Local<v8::Value>> &args = {}
+        ) -> int {
+            return schedule_js(callback, delay_ms, false, args);
+        }
+
+        auto set_interval(
+            v8::Local<v8::Function> callback,
+            long interval_ms,
+            const std::vector<v8::Local<v8::Value>> &args = {}
+        ) -> int {
+            auto normalized = std::max(1L, interval_ms);
+            return schedule_js(callback, normalized, true, args);
+        }
+
+        auto set_timeout_task(
+            std::function<void(v8::Local<v8::Context>)> task,
+            long delay_ms
+        ) -> int {
+            return schedule_task(std::move(task), delay_ms, false);
+        }
+
+        auto set_interval_task(
+            std::function<void(v8::Local<v8::Context>)> task,
+            long interval_ms
+        ) -> int {
+            auto normalized = std::max(1L, interval_ms);
+            return schedule_task(std::move(task), normalized, true);
+        }
+
+        auto run_once(v8::Local<v8::Context> context) -> bool {
+            return tick(context);
+        }
+
+        auto has_pending() const -> bool {
+            return !timer_map_.empty();
+        }
+
+    private:
+
+        auto normalize_delay(long delay_ms) const -> long {
+            return std::max(0L, delay_ms);
+        }
+
+        auto schedule_js(
+            v8::Local<v8::Function> callback,
+            long delay_ms,
+            bool is_interval,
+            const std::vector<v8::Local<v8::Value>> &args
          ) -> int {
             auto id = next_id_++;
             auto now = std::chrono::steady_clock::now();
-            auto deadline = now + std::chrono::milliseconds(delay_ms);
+            auto normalized = normalize_delay(delay_ms);
+            auto deadline = now + std::chrono::milliseconds(normalized);
             timer_heap_.push({deadline, id});
             auto data = TimerData{};
             data.callback.Reset(isolate_, callback);
+            data.args.reserve(args.size());
+            for (auto value: args) {
+                v8::Global<v8::Value> stored{isolate_, value};
+                data.args.emplace_back(std::move(stored));
+            }
+            data.is_native = false;
             data.is_interval = is_interval;
-            data.interval_ms = delay_ms;
+            data.interval_ms = is_interval ? std::max(1L, normalized) : normalized;
+            timer_map_.emplace(id, std::move(data));
+            return id;
+        }
+
+        auto schedule_task(
+            std::function<void(v8::Local<v8::Context>)> task,
+            long delay_ms,
+            bool is_interval
+        ) -> int {
+            auto id = next_id_++;
+            auto now = std::chrono::steady_clock::now();
+            auto normalized = normalize_delay(delay_ms);
+            auto deadline = now + std::chrono::milliseconds(normalized);
+            timer_heap_.push({deadline, id});
+            auto data = TimerData{};
+            data.native_task = std::move(task);
+            data.is_native = true;
+            data.is_interval = is_interval;
+            data.interval_ms = is_interval ? std::max(1L, normalized) : normalized;
             timer_map_.emplace(id, std::move(data));
             return id;
         }
@@ -79,22 +154,49 @@ export namespace ppnt::jr {
                 if (it == timer_map_.end()) {
                     continue;
                 }
-                auto cb_copy = v8::Global<v8::Function>(isolate_, it->second.callback);
+                auto is_native = it->second.is_native;
                 auto is_interval = it->second.is_interval;
+                auto cb_copy = v8::Global<v8::Function>{};
+                auto args_copy = std::vector<v8::Global<v8::Value>>{};
+                auto native_task = std::function<void(v8::Local<v8::Context>)>{};
+                if (is_native) {
+                    native_task = it->second.native_task;
+                } else {
+                    cb_copy = v8::Global<v8::Function>(isolate_, it->second.callback);
+                    args_copy.reserve(it->second.args.size());
+                    for (auto &arg: it->second.args) {
+                        v8::Global<v8::Value> copied{isolate_, arg};
+                        args_copy.emplace_back(std::move(copied));
+                    }
+                }
 
                 if (!is_interval) {
                     timer_map_.erase(it);
                 }
                 {
-                    auto handle_Scope = v8::HandleScope{isolate_};
-                    auto func = v8::Local<v8::Function>::New(isolate_, cb_copy);
-                    auto receiver = context->Global();
-
+                    auto handle_scope = v8::HandleScope{isolate_};
                     auto try_catch = v8::TryCatch{isolate_};
-                    func->Call(context, receiver, 0, nullptr).IsEmpty();
+                    if (is_native) {
+                        native_task(context);
+                    } else {
+                        auto func = v8::Local<v8::Function>::New(isolate_, cb_copy);
+                        auto receiver = context->Global();
+                        auto argv = std::vector<v8::Local<v8::Value>>{};
+                        argv.reserve(args_copy.size());
+                        for (auto &arg: args_copy) {
+                            argv.push_back(v8::Local<v8::Value>::New(isolate_, arg));
+                        }
+                        auto _ = func->Call(context, receiver, static_cast<int>(argv.size()), argv.data()).IsEmpty();
+                    }
                     if (try_catch.HasCaught()) {
-                        auto err = v8::String::Utf8Value{isolate_, try_catch.Message()->Get()};
-                        std::println("[JS Error]: {}", *err);
+                        auto message = try_catch.Message();
+                        if (!message.IsEmpty()) {
+                            auto err = v8::String::Utf8Value{isolate_, message->Get()};
+                            std::println("[JS Error]: {}", *err != nullptr ? *err : "<unknown>");
+                        } else {
+                            auto err = v8::String::Utf8Value{isolate_, try_catch.Exception()};
+                            std::println("[JS Error]: {}", *err != nullptr ? *err : "<unknown>");
+                        }
                     }
                 }
                 isolate_->PerformMicrotaskCheckpoint();

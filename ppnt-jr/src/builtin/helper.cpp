@@ -5,6 +5,20 @@ namespace ppnt::jr::builtin {
         return v8::String::NewFromUtf8(isolate, data.data()).ToLocalChecked();
     }
 
+    auto prop_attr(bool writable, bool enumerable, bool configurable) -> v8::PropertyAttribute {
+        auto attr = v8::PropertyAttribute::None;
+        if (!writable) {
+            attr = static_cast<v8::PropertyAttribute>(attr | v8::PropertyAttribute::ReadOnly);
+        }
+        if (!enumerable) {
+            attr = static_cast<v8::PropertyAttribute>(attr | v8::PropertyAttribute::DontEnum);
+        }
+        if (!configurable) {
+            attr = static_cast<v8::PropertyAttribute>(attr | v8::PropertyAttribute::DontDelete);
+        }
+        return attr;
+    }
+
     auto set_val(
         v8::Isolate *isolate,
         v8::Local<v8::Template> tmpl,
@@ -18,6 +32,11 @@ namespace ppnt::jr::builtin {
     auto set_val(v8::Isolate *isolate, v8::Local<v8::Object> obj, std::string_view name,
         v8::Local<v8::Value> val) -> void {
         obj->Set(isolate->GetCurrentContext(), str(isolate, name), val).Check();
+    }
+
+    auto set_val(v8::Isolate *isolate, v8::Local<v8::Object> obj, std::string_view name,
+        v8::Local<v8::Value> val, v8::PropertyAttribute attr) -> void {
+        obj->DefineOwnProperty(isolate->GetCurrentContext(), str(isolate, name), val, attr).Check();
     }
 
     auto set_val(v8::Isolate *isolate, v8::Local<v8::Template> tmpl, std::string_view name,
@@ -43,12 +62,143 @@ namespace ppnt::jr::builtin {
         v8::Isolate *isolate,
         v8::Local<v8::Template> tmpl,
         std::string_view name,
-        v8::FunctionCallback callback
+        v8::FunctionCallback callback,
+        v8::PropertyAttribute attr
     ) -> void {
         auto func = v8::FunctionTemplate::New(isolate, callback);
         auto v8_name = str(isolate, name);
         func->SetClassName(v8_name);
-        tmpl->Set(v8_name, func);
+        tmpl->Set(v8_name, func, attr);
+    }
+
+    auto set_method(
+        v8::Isolate *isolate,
+        v8::Local<v8::Object> obj,
+        std::string_view name,
+        v8::FunctionCallback callback,
+        v8::PropertyAttribute attr
+    ) -> void {
+        auto context = isolate->GetCurrentContext();
+        auto v8_name = str(isolate, name);
+        auto func = v8::Function::New(context, callback).ToLocalChecked();
+        func->SetName(v8_name);
+        obj->DefineOwnProperty(context, v8_name, func, attr).Check();
+    }
+
+    auto set_proto_method(
+        v8::Isolate *isolate,
+        v8::Local<v8::FunctionTemplate> ctor,
+        std::string_view name,
+        v8::FunctionCallback callback,
+        v8::PropertyAttribute attr
+    ) -> void {
+        set_method(isolate, ctor->PrototypeTemplate(), name, callback, attr);
+    }
+
+    auto set_proto_val(
+        v8::Isolate *isolate,
+        v8::Local<v8::FunctionTemplate> ctor,
+        std::string_view name,
+        v8::Local<v8::Value> val,
+        v8::PropertyAttribute attr
+    ) -> void {
+        set_val(isolate, ctor->PrototypeTemplate(), name, val, attr);
+    }
+
+    auto set_instance_val(
+        v8::Isolate *isolate,
+        v8::Local<v8::FunctionTemplate> ctor,
+        std::string_view name,
+        v8::Local<v8::Value> val,
+        v8::PropertyAttribute attr
+    ) -> void {
+        set_val(isolate, ctor->InstanceTemplate(), name, val, attr);
+    }
+
+    auto define_data_property(
+        v8::Isolate *isolate,
+        v8::Local<v8::Object> obj,
+        std::string_view name,
+        v8::Local<v8::Value> val,
+        bool writable,
+        bool enumerable,
+        bool configurable
+    ) -> void {
+        set_val(isolate, obj, name, val, prop_attr(writable, enumerable, configurable));
+    }
+
+    auto define_method_property(
+        v8::Isolate *isolate,
+        v8::Local<v8::Object> obj,
+        std::string_view name,
+        v8::FunctionCallback callback,
+        bool writable,
+        bool enumerable,
+        bool configurable
+    ) -> void {
+        set_method(isolate, obj, name, callback, prop_attr(writable, enumerable, configurable));
+    }
+
+    auto define_proto_data_property(
+        v8::Isolate *isolate,
+        v8::Local<v8::FunctionTemplate> ctor,
+        std::string_view name,
+        v8::Local<v8::Value> val,
+        bool writable,
+        bool enumerable,
+        bool configurable
+    ) -> void {
+        set_proto_val(isolate, ctor, name, val, prop_attr(writable, enumerable, configurable));
+    }
+
+    auto define_proto_method_property(
+        v8::Isolate *isolate,
+        v8::Local<v8::FunctionTemplate> ctor,
+        std::string_view name,
+        v8::FunctionCallback callback,
+        bool writable,
+        bool enumerable,
+        bool configurable
+    ) -> void {
+        set_proto_method(isolate, ctor, name, callback, prop_attr(writable, enumerable, configurable));
+    }
+
+    auto define_global_property(
+        v8::Isolate *isolate,
+        v8::Local<v8::Object> global,
+        std::string_view name,
+        v8::Local<v8::Value> val,
+        bool writable,
+        bool enumerable,
+        bool configurable
+    ) -> void {
+        define_data_property(isolate, global, name, val, writable, enumerable, configurable);
+    }
+
+    auto define_unforgeable_property(
+        v8::Isolate *isolate,
+        v8::Local<v8::Object> obj,
+        std::string_view name,
+        v8::Local<v8::Value> val,
+        bool writable,
+        bool enumerable
+    ) -> void {
+        define_data_property(isolate, obj, name, val, writable, enumerable, false);
+    }
+
+    auto set_proto(
+        v8::Isolate *isolate,
+        v8::Local<v8::Object> obj,
+        v8::Local<v8::Value> proto
+    ) -> void {
+        obj->SetPrototypeV2(isolate->GetCurrentContext(), proto).Check();
+    }
+
+    auto get_proto(
+        v8::Isolate *isolate,
+        v8::Local<v8::Object> obj
+    ) -> v8::Local<v8::Value> {
+        return obj->GetPrototypeV2().As<v8::Value>();
     }
 
     auto get_to_string_tag(v8::Isolate *isolate) -> v8::Local<v8::Symbol> {

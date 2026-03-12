@@ -61,9 +61,9 @@ export namespace ppnt::libc {
     constexpr int madv_keeponfork = MADV_KEEPONFORK;
     constexpr int madv_cold = MADV_COLD;
     constexpr int madv_pageout = MADV_PAGEOUT;
-    constexpr int madv_populate_read = MADV_POPULATE_READ;
-    constexpr int madv_populate_write = MADV_POPULATE_WRITE;
-    constexpr int madv_dontneed_locked = MADV_DONTNEED_LOCKED;
+    // constexpr int madv_populate_read = MADV_POPULATE_READ;
+    // constexpr int madv_populate_write = MADV_POPULATE_WRITE;
+    // constexpr int madv_dontneed_locked = MADV_DONTNEED_LOCKED;
     constexpr int madv_hwpoison = MADV_HWPOISON;
 
     constexpr int posix_madv_normal = POSIX_MADV_NORMAL;

@@ -1,6 +1,8 @@
 module ppnt.jr.builtin.extension;
 
 import ppnt.jr.builtin.window;
+import ppnt.jr.builtin.console;
+import ppnt.jr.builtin.timeout;
 
 namespace ppnt::jr::builtin {
 
@@ -24,7 +26,9 @@ namespace ppnt::jr::builtin {
 
     auto register_all(v8::Isolate *isolate) ->v8::Local<v8::Context> {
       return create<
-          WindowExtension
+          WindowExtension,
+          ConsoleExtension,
+          TimeoutExtension
       >(isolate);
     }
 }
