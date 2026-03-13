@@ -49,7 +49,7 @@ namespace ppnt::http {
             co_return make_err_result(std::errc::not_connected, std::format("Proxy connect: {}", res->get_status().code));
         }
 
-        auto session_connect(const SessionKey &key, uint32_t timeout_ms) -> io::TaskResult<std::shared_ptr<AnySession>> {
+        auto session_connect(const SessionKey &key, uint32_t timeout_ms, net::TlsContext *tls_ctx) -> io::TaskResult<std::shared_ptr<AnySession>> {
             net::TcpStream tcp_stream{};
 
             if (key.proxy) {
@@ -76,10 +76,15 @@ namespace ppnt::http {
             std::optional<net::BoxedStream> boxed_stream{std::nullopt};
             bool use_h2{false};
             if (key.is_ssl) {
-                // TODO context
-                auto ctx = net::TlsContext::client();
-                if (!ctx) {
-                    co_return std::unexpected{ctx.error()};
+                net::TlsContext *ctx = tls_ctx;
+                std::optional<net::TlsContext> owned_ctx{};
+                if (ctx == nullptr) {
+                    auto ctx_res = net::TlsContext::client();
+                    if (!ctx_res) {
+                        co_return std::unexpected{ctx_res.error()};
+                    }
+                    owned_ctx = std::move(*ctx_res);
+                    ctx = std::addressof(*owned_ctx);
                 }
                 // TODO timeout
                 auto tmp = co_await net::TlsStream<>::connect(std::move(tcp_stream), *ctx, key.host, true);
@@ -92,26 +97,32 @@ namespace ppnt::http {
                 boxed_stream = net::BoxedStream{std::move(tcp_stream)};
             }
             if (use_h2) {
-                auto session = Http2Session(std::move(*boxed_stream), key);
-                co_return AnySession::create(std::move(session));
+                co_return AnySession::create<Http2Session<net::BoxedStream>>(std::move(*boxed_stream), key);
             } else {
-                auto session = Http1Session(std::move(*boxed_stream), key);
-                co_return AnySession::create(std::move(session));
+                co_return AnySession::create<Http1Session<net::BoxedStream>>(std::move(*boxed_stream), key);
             }
         }
     }
 
-    auto SessionPool::acquire_session(const SessionKey &key, uint32_t timeout_ms) -> io::TaskResult<std::shared_ptr<AnySession>> {
+    auto SessionPool::acquire_session(const SessionKey &key, uint32_t timeout_ms, net::TlsContext *tls_ctx) -> io::TaskResult<std::shared_ptr<AnySession>> {
         auto &group = sessions_[key];
-        if (group.h2_session) {
-            if (group.h2_session->is_valid()) {
-                co_return group.h2_session;
-            } else {
-                group.h2_session.reset();
+        if (group.h2_session && !group.h2_session->is_valid()) {
+            group.h2_session.reset();
+        }
+
+        auto invalid_range = std::ranges::remove_if(
+            group.h1_idle,
+            [](const std::shared_ptr<AnySession> &session) {
+                return !session || !session->is_valid();
             }
+        );
+        group.h1_idle.erase(invalid_range.begin(), invalid_range.end());
+
+        if (group.h2_session) {
+            co_return group.h2_session;
         }
         while (!group.h1_idle.empty()) {
-            auto session = group.h1_idle.front();
+            auto session = std::move(group.h1_idle.front());
             group.h1_idle.pop_front();
 
             if (session->is_valid()) {
@@ -119,7 +130,7 @@ namespace ppnt::http {
             }
         }
 
-        auto new_session_ptr = co_await session_connect(key, timeout_ms);
+        auto new_session_ptr = co_await session_connect(key, timeout_ms, tls_ctx);
         if (!new_session_ptr) co_return std::unexpected{new_session_ptr.error()};
 
         std::shared_ptr<AnySession> shared_session = std::move(*new_session_ptr);
@@ -136,12 +147,37 @@ namespace ppnt::http {
         if (!session || !session->is_valid()) return;
 
         if (is_h1(session->get_http_version())) {
-            const auto& key = session->get_session_key();
             if (sessions_[key].h1_idle.size() < 100) {
                 sessions_[key].h1_idle.push_back(std::move(session));
             } else {
                 session->close();
             }
         }
+    }
+
+    auto SessionPool::close_async() -> io::Task<Result<Unit>> {
+        for (auto &[key, group] : sessions_) {
+            if (group.h2_session) {
+                auto res = co_await group.h2_session->close_async();
+                if (!res) {
+                    co_return std::unexpected{res.error()};
+                }
+                group.h2_session.reset();
+            }
+
+            while (!group.h1_idle.empty()) {
+                auto session = std::move(group.h1_idle.front());
+                group.h1_idle.pop_front();
+                if (!session) {
+                    continue;
+                }
+                auto res = co_await session->close_async();
+                if (!res) {
+                    co_return std::unexpected{res.error()};
+                }
+            }
+        }
+        sessions_.clear();
+        co_return {};
     }
 }

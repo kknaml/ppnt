@@ -4,19 +4,40 @@ using namespace ppnt::net;
 
 namespace ppnt::http {
 
-    HttpClient::HttpClient(Config config) : config_(std::move(config)), tls_ctx_(TlsContext::client().value()) {}
+    HttpClient::HttpClient(Config config)
+        : config_(std::move(config)),
+          tls_ctx_(TlsContext::client(config_.tls_spec_factory).value()),
+          session_pool_(std::make_shared<SessionPool>()) {}
 
     auto HttpClient::request(HttpRequest req, std::optional<ProxyConfig> proxy_config) -> io::TaskResult<HttpResponse<AnySession>> {
         auto key = SessionKey(req.url.host(), req.url.port_or_default(), req.url.scheme() == "https", std::move(proxy_config));
-        auto session = co_await session_pool_.acquire_session(key, config_.timeout.connection_timeout);
+        auto session = co_await session_pool_->acquire_session(key, config_.timeout.connection_timeout, &tls_ctx_);
         if (!session) {
             co_return std::unexpected{session.error()};
         }
         auto res = co_await (*session)->request(std::move(req));
         if (res) {
-            session_pool_.release_h1_session(key, std::move(*session));
+            res->set_session(*session);
+
+            if ((*session)->get_http_version() == Version::HTTP_11 ||
+                (*session)->get_http_version() == Version::HTTP_10) {
+                auto pool = session_pool_;
+                auto release_key = key;
+                res->set_body_consumed_hook([pool, release_key](std::shared_ptr<AnySession> held_session, bool success) mutable {
+                    if (!held_session) return;
+                    if (success) {
+                        pool->release_h1_session(release_key, std::move(held_session));
+                    } else {
+                        held_session->close();
+                    }
+                });
+            }
         }
         co_return res;
+    }
+
+    auto HttpClient::close_async() -> io::Task<Result<Unit>> {
+        return session_pool_->close_async();
     }
 
     // auto HttpClient::request(HttpRequest req) -> io::Task<Result<ClientResponse>> {

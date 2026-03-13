@@ -121,6 +121,8 @@ export namespace ppnt::net {
             if (!raw_ssl) {
                 co_return std::unexpected{Error{std::make_error_code(std::errc::not_enough_memory), "tls connect"}};
             }
+            boringssl::SSL_set_ex_data(raw_ssl, detail::get_tls_spec_slot(), nullptr);
+            boringssl::SSL_set_client_hello_interceptor(raw_ssl, nullptr);
             {
                 static const std::vector<uint8_t> alpn = {
                     0x02, 'h', '2',
@@ -132,9 +134,14 @@ export namespace ppnt::net {
                 }
             }
             // auto *spec = create_hello_spec_factory(make_test_spec);
-            auto *spec = ctx.get_spec_factory();
-            boringssl::SSL_set_ex_data(raw_ssl, detail::get_tls_spec_slot(), static_cast<void *>(spec));
-            boringssl::SSL_set_client_hello_interceptor(raw_ssl, my_client_hello_interceptor);
+            if (auto *spec_factory = ctx.get_spec_factory(); spec_factory != nullptr) {
+                auto *spec = new (std::nothrow) ClientHelloSpec(spec_factory->get_tls_spec());
+                if (!spec) {
+                    co_return make_err_result(std::errc::not_enough_memory, "alloc tls spec");
+                }
+                boringssl::SSL_set_ex_data(raw_ssl, detail::get_tls_spec_slot(), static_cast<void *>(spec));
+                boringssl::SSL_set_client_hello_interceptor(raw_ssl, my_client_hello_interceptor);
+            }
             boringssl::SSL_set_connect_state(raw_ssl);
             auto ssl = UniqueSsl{raw_ssl};
             std::string host{host_name};
@@ -195,7 +202,16 @@ export namespace ppnt::net {
                 return boringssl::SSL_shutdown(ssl);
             };
             auto res = co_await run_ssl_op(op);
-            if (!res) co_return std::unexpected{res.error()};
+            if (!res) {
+                auto &err = res.error();
+                auto tolerate_eof_shutdown =
+                    err.ec == std::make_error_code(std::errc::connection_aborted) ||
+                    (err.ec == std::make_error_code(std::errc::protocol_error) &&
+                     err.message.starts_with("ssl_err is 5"));
+                if (!tolerate_eof_shutdown) {
+                    co_return std::unexpected{err};
+                }
+            }
 
             inner_.close();
             co_return {};

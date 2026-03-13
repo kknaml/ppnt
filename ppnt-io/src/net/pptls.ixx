@@ -64,14 +64,12 @@ export namespace ppnt::net {
 
     /**
      * @brief Creates a ClientHelloSpecFactory instance.
-     * * @note **Ownership Transfer**: The returned raw pointer is intended to be stored
-     * in an SSL object via `SSL_set_ex_data`.
+     * * @note The returned pointer is a prototype factory used to generate a
+     * per-SSL `ClientHelloSpec` snapshot during `TlsStream::connect`.
      * * @details
-     * The lifecycle of this object is managed by the SSL ex_data free callback.
-     * When `SSL_free()` is called:
-     * - If `!is_global()`, this object will be automatically `delete`d.
-     * - If `is_global()`, the deletion is skipped.
-     * * @warning Do NOT manually delete the returned pointer if it has been attached to an SSL.
+     * The per-SSL `ClientHelloSpec` snapshot lifecycle is managed by the SSL
+     * ex_data free callback.
+     * The prototype returned here remains owned by the caller unless it is global.
      */
     auto create_hello_spec_factory(auto &&fn, bool is_global = false) -> ClientHelloSpecFactory * {
         return new detail::ClientHelloSpecFactoryImpl(fn, is_global);
@@ -111,20 +109,19 @@ export namespace ppnt::net {
     };
 
     auto my_client_hello_interceptor(boringssl::SSL *ssl, uint8_t **data_ptr, size_t *len_ptr) -> int {
-        auto *spec_factory = static_cast<ClientHelloSpecFactory *>(boringssl::SSL_get_ex_data(ssl, detail::get_tls_spec_slot()));
-        if (!spec_factory) {
+        auto *spec = static_cast<ClientHelloSpec *>(boringssl::SSL_get_ex_data(ssl, detail::get_tls_spec_slot()));
+        if (!spec) {
             return 1;
         }
-        auto spec = spec_factory->get_tls_spec();
         auto original = std::span{*data_ptr, *len_ptr};
-        auto new_hello_vec = ClientHelloRewriter::rewrite(original, spec);
+        auto new_hello_vec = ClientHelloRewriter::rewrite(original, *spec);
         if (!new_hello_vec) {
             log::error({"error in tls rewrite: {}"}, new_hello_vec.error());
-            return 1;
+            return 0;
         }
         if (new_hello_vec->empty()) {
             log::error({"tls rewrite empty"});
-            return 1;
+            return 0;
         }
         auto *new_mem = static_cast<uint8_t *>(boringssl::OPENSSL_malloc(new_hello_vec->size()));
         if (!new_mem) {

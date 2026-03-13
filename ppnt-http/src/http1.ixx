@@ -72,37 +72,9 @@ export namespace ppnt::http {
             this->init();
         }
 
-        Http1Session(Http1Session &&other) noexcept
-            : connection_(std::move(other.connection_)), parser_(other.parser_), settings_(other.settings_),
-            body_buffer_(std::move(other.body_buffer_)), response_(std::move(other.response_)),
-            temp_header_name_(std::move(other.temp_header_name_)), temp_header_value_(std::move(other.temp_header_value_)),
-            last_was_value_(other.last_was_value_), headers_complete_(other.headers_complete_),
-            message_complete_(other.message_complete_), session_key_(std::move(other.session_key_)) {
-            parser_.settings = &settings_;
-            parser_.data = this;
-            response_.set_session(this);
-        }
+        Http1Session(Http1Session &&other) noexcept = delete;
 
-        auto operator=(Http1Session &&other) -> Http1Session & {
-            if (this != &other) {
-                connection_ = std::move(other.connection_);
-                parser_ = std::move(other.parser_);
-                settings_ = other.settings_;
-                body_buffer_ = std::move(other.body_buffer_);
-                response_ = std::move(other.response_);
-                temp_header_name_ = std::move(other.temp_header_name_);
-                temp_header_value_ = std::move(other.temp_header_value_);
-                last_was_value_ = other.last_was_value_;
-                headers_complete_ = other.headers_complete_;
-                message_complete_ = other.message_complete_;
-                session_key_ = std::move(other.session_key_);
-
-                parser_.settings = &settings_;
-                parser_.data = this;
-                response_.set_session(this);
-            }
-            return *this;
-        }
+        auto operator=(Http1Session &&other) -> Http1Session & = delete;
 
         auto request(HttpRequest request) -> io::Task<Result<HttpResponse<Http1Session>>> {
             reset_state();
@@ -145,8 +117,7 @@ export namespace ppnt::http {
 
         [[nodiscard]]
         auto is_valid() const -> bool {
-            // TODO
-            return true;
+            return connection_.is_alive();
         }
 
         [[nodiscard]]
@@ -161,6 +132,15 @@ export namespace ppnt::http {
 
         auto close() -> void {
             connection_.close();
+        }
+
+        auto close_async() -> io::Task<Result<Unit>> {
+            if constexpr (requires(C &c) { c.shutdown(); }) {
+                co_return co_await connection_.shutdown();
+            } else {
+                connection_.close();
+                co_return {};
+            }
         }
 
         auto leak_stream() && -> C {
@@ -190,9 +170,11 @@ export namespace ppnt::http {
         auto reset_state() -> void {
             llhttp::llhttp_reset(&parser_);
             response_ = HttpResponse{this};
+            body_buffer_.clear();
             temp_header_name_.clear();
             temp_header_value_.clear();
             last_was_value_ = false;
+            headers_complete_ = false;
             message_complete_ = false;
         }
 

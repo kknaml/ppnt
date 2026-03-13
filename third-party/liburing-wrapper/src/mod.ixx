@@ -30,6 +30,7 @@ export namespace liburing {
     using ::io_uring_peek_batch_cqe;
     using ::io_uring_cqe_seen;
     using ::io_uring_register_buf_ring;
+    using ::io_uring_unregister_buf_ring;
     using ::io_uring_buf_ring_init;
     using ::io_uring_buf_ring_add;
     using ::io_uring_buf_ring_advance;

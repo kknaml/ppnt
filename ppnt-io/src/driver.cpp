@@ -20,8 +20,7 @@ namespace ppnt::io {
     Ring::~Ring() {
         if (buffer_mem_) std::free(buffer_mem_);
         if (using_buf_ring_ && buf_ring_) {
-            // In setup_buffers below we use posix_memalign, so we should free it.
-            std::free(buf_ring_);
+            liburing::io_uring_unregister_buf_ring(&ring_, BGID);
             std::free(buf_ring_);
         }
         liburing::io_uring_queue_exit(&ring_);
@@ -164,7 +163,7 @@ namespace ppnt::io {
         // We do this by attempting the registration.
         auto ring_sz = sizeof(liburing::io_uring_buf) * BUF_COUNT;
         void *ring_ptr{nullptr};
-        if (posix_memalign(&ring_ptr, BUF_SIZE, ring_sz)) {
+        if (posix_memalign(&ring_ptr, BUF_SIZE, ring_sz) == 0) {
             buf_ring_ = static_cast<liburing::io_uring_buf_ring *>(ring_ptr);
             liburing::io_uring_buf_reg reg{};
             reg.ring_addr = reinterpret_cast<uint64_t>(ring_ptr);

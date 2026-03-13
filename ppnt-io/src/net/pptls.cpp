@@ -3,21 +3,6 @@ module ppnt.net.tls;
 namespace ppnt::net {
 
     namespace {
-        auto client_hello_spec_free_callback(
-            void *parent,
-            void *ptr,
-            boringssl::CRYPTO_EX_DATA *ad,
-            int idx,
-            long argl,
-            void *argp
-        ) -> void {
-            auto *factory = static_cast<ClientHelloSpecFactory *>(ptr);
-            if (factory != nullptr) {
-                if (!factory->is_global()) {
-                    delete factory;
-                }
-            }
-        }
     }
 
     namespace detail {
@@ -28,7 +13,7 @@ namespace ppnt::net {
                 nullptr,
                 nullptr,
                 nullptr,
-                client_hello_spec_free_callback
+                nullptr
             );
             return g_spec_idx;
         }
@@ -125,7 +110,11 @@ namespace ppnt::net {
         writer.write_bytes(spec.compression_method);
 
         writer.write_u16_length_prefixed([&] {
+            std::vector<uint16_t> handled_ext_ids{};
+            handled_ext_ids.reserve(spec.extensions.size());
+
             for (const auto &ext_cfg : spec.extensions) {
+                handled_ext_ids.push_back(ext_cfg.id);
                 if (ext_cfg.strategy == TlsExtensionConfig::Strategy::Drop) {
                     continue;
                 }
@@ -151,6 +140,16 @@ namespace ppnt::net {
                    writer.write_u16(static_cast<uint16_t>(payload.size()));
                    writer.write_bytes(payload);
                }
+            }
+
+            for (const auto &[type, data] : parsed_extensions) {
+                auto already_handled = std::ranges::find(handled_ext_ids, type) != handled_ext_ids.end();
+                if (already_handled) {
+                    continue;
+                }
+                writer.write_u16(type);
+                writer.write_u16(static_cast<uint16_t>(data.size()));
+                writer.write_bytes(data);
             }
         });
 

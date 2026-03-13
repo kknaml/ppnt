@@ -12,7 +12,7 @@ export namespace ppnt::net {
         virtual auto read(std::span<uint8_t> buf, uint32_t timeout_ms = 0) -> io::Task<Result<size_t>> = 0;
         virtual auto write(std::span<const uint8_t> buf, uint32_t timeout_ms = 0) -> io::Task<Result<size_t>> = 0;
         virtual auto close() -> void = 0;
-        virtual auto is_alive() -> bool = 0;
+        virtual auto is_alive() const -> bool = 0;
     };
 
     // 2. Implementation Wrapper (Bridges T -> AnyStream)
@@ -24,7 +24,7 @@ export namespace ppnt::net {
         auto read(std::span<uint8_t> buf, uint32_t timeout_ms) -> io::Task<Result<size_t>> override { co_return co_await inner.read(buf, timeout_ms); }
         auto write(std::span<const uint8_t> buf, uint32_t timeout_ms) -> io::Task<Result<size_t>> override { co_return co_await inner.write(buf, timeout_ms); }
         auto close() -> void override { inner.close(); }
-        auto is_alive() -> bool override { return inner.is_alive(); }
+        auto is_alive() const -> bool override { return inner.is_alive(); }
     };
 
     // 3. The Value Wrapper (passed to Http1Session)
@@ -60,7 +60,7 @@ export namespace ppnt::net {
             ptr_->close();
         }
 
-        auto is_alive() -> bool {
+        auto is_alive() const -> bool {
             return ptr_ && ptr_->is_alive();
         }
     };

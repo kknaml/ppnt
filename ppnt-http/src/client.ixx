@@ -6,6 +6,7 @@ import ppnt.http.http2;
 import ppnt.net.any_stream;
 import ppnt.net.tcp_stream;
 import ppnt.net.ssl;
+import ppnt.net.tls;
 import ppnt.net.addr;
 import ppnt.io.task;
 import ppnt.err;
@@ -23,6 +24,7 @@ export namespace ppnt::http {
     struct HttpClientConfig {
         std::optional<ProxyConfig> proxy{};
         bool h2_enabled{true};
+        net::ClientHelloSpecFactory *tls_spec_factory{nullptr};
 
         HttpTimeout timeout{};
     };
@@ -35,13 +37,14 @@ export namespace ppnt::http {
     private:
         Config config_;
         TlsContext tls_ctx_;
-        SessionPool session_pool_;
+        std::shared_ptr<SessionPool> session_pool_;
         
     public:
         explicit HttpClient(Config config = {});
 
         // auto request(HttpRequest req) -> io::Task<Result<ClientResponse>>;
         auto request(HttpRequest req, std::optional<ProxyConfig> proxy_config = std::nullopt) -> io::TaskResult<HttpResponse<AnySession>>;
+        auto close_async() -> io::Task<Result<Unit>>;
         
     private:
         //auto connect_to_remote(const std::string &host, int port, bool is_tls) -> io::Task<Result<BoxedStream>>;

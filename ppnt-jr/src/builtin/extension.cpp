@@ -3,6 +3,8 @@ module ppnt.jr.builtin.extension;
 import ppnt.jr.builtin.window;
 import ppnt.jr.builtin.console;
 import ppnt.jr.builtin.timeout;
+import ppnt.jr.builtin.fetch;
+import ppnt.jr.builtin.xhr;
 
 namespace ppnt::jr::builtin {
 
@@ -28,7 +30,9 @@ namespace ppnt::jr::builtin {
       return create<
           WindowExtension,
           ConsoleExtension,
-          TimeoutExtension
+          TimeoutExtension,
+          FetchExtension,
+          XMLHttpRequestExtension
       >(isolate);
     }
 }

@@ -28,7 +28,8 @@ namespace ppnt::jr::builtin {
         }
 
         auto console_log(const v8::FunctionCallbackInfo<v8::Value> &info) -> void {
-            console_debug(info);
+            auto line = stringify_args(info.GetIsolate(), info, "[log]");
+            log::debug({"[JS LOG]: {}"}, line);
         }
 
         auto console_info(const v8::FunctionCallbackInfo<v8::Value> &info) -> void {

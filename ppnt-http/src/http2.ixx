@@ -28,14 +28,13 @@ export namespace ppnt::http {
     template<Connection C>
     class Http2Session : public NonCopy {
     private:
-
         C connection_;
         nghttp2::nghttp2_session *session_{nullptr};
         std::map<int32_t, std::shared_ptr<Http2StreamContext>> streams_{};
         bool should_close_{false};
+        io::JoinHandle<void> back_task_{nullptr};
 
         SessionKey session_key_;
-        io::JoinHandle<void> back_task_{nullptr};
 
         struct Nghttp2UserData {
             Http2Session* self_ptr;
@@ -49,38 +48,13 @@ export namespace ppnt::http {
             init();
         }
 
-        Http2Session(Http2Session &&other) noexcept :
-            connection_(std::move(other.connection_)),
-            session_(std::exchange(other.session_, nullptr)),
-            streams_(std::move(other.streams_)),
-            should_close_(other.should_close_),
-            session_key_(std::move(other.session_key_)),
-            back_task_(std::move(other.back_task_)),
-            user_data_block_(std::move(other.user_data_block_))
-        {
-            if (user_data_block_) {
-                user_data_block_->self_ptr = this;
-            }
-        }
+        Http2Session(Http2Session &&other) noexcept = delete;
 
-        auto operator=(Http2Session &&other) noexcept -> Http2Session & {
-            if (this != &other) {
-                this->connection_ = std::move(other.connection_);
-                this->session_ = std::exchange(other.session_, nullptr);
-                this->streams_ = std::move(other.streams_);
-                this->should_close_ = other.should_close_;
-                this->session_key_ = std::move(other.session_key_);
-                this->back_task_ = std::move(other.back_task_);
-
-                this->user_data_block_ = std::move(other.user_data_block_);
-                if (this->user_data_block_) {
-                    this->user_data_block_->self_ptr = this;
-                }
-            }
-            return *this;
-        }
+        auto operator=(Http2Session &&other) noexcept -> Http2Session & = delete;
 
         ~Http2Session() {
+            should_close_ = true;
+            connection_.close();
             if (session_) {
                 nghttp2::nghttp2_session_del(session_);
                 session_ = nullptr;
@@ -88,9 +62,7 @@ export namespace ppnt::http {
         }
 
         auto request(HttpRequest req) -> io::Task<Result<HttpResponse<Http2Session>>> {
-            if (!back_task_) {
-                back_task_ = io::spawn(background_driver());
-            }
+            ensure_background_driver();
             std::vector<nghttp2::nghttp2_nv> nva{};
             std::deque<std::string> string_keeper{};
 
@@ -154,15 +126,6 @@ export namespace ppnt::http {
                 co_return make_err_result(std::errc::connection_aborted, "Stream closed or failed");
             }
 
-            // while (!ctx->header_complete && !ctx->stream_closed) {
-            //     auto res = co_await drive();
-            //     if (!res) {
-            //         streams_.erase(stream_id);
-            //         co_return std::unexpected{res.error()};
-            //     }
-            // }
-
-
             auto resp = HttpResponse(this);
             resp.set_id(stream_id);
             resp.set_status({ctx->status_code});
@@ -186,7 +149,7 @@ export namespace ppnt::http {
                 co_return data;
             }
 
-            auto data = co_await io::suspend_coroutine<std::vector<uint8_t>>([&ctx](auto resume_cb) {
+            auto data = co_await io::suspend_coroutine<std::vector<uint8_t>>([ctx](auto resume_cb) {
                 ctx->body_waker = std::move(resume_cb);
             });
 
@@ -216,7 +179,28 @@ export namespace ppnt::http {
             connection_.close();
         }
 
+        auto close_async() -> io::Task<Result<Unit>> {
+            should_close_ = true;
+            connection_.close();
+
+            if (back_task_) {
+                try {
+                    co_await std::move(back_task_);
+                } catch (...) {
+                    co_return make_err_result(std::errc::operation_canceled, "http2 background driver aborted");
+                }
+            }
+
+            co_return {};
+        }
+
     private:
+        auto ensure_background_driver() -> void {
+            if (!back_task_) {
+                back_task_ = io::spawn(background_driver());
+            }
+        }
+
         auto init() -> void {
             nghttp2::nghttp2_session_callbacks *callbacks{nullptr};
             nghttp2::nghttp2_session_callbacks_new(&callbacks);
@@ -360,7 +344,11 @@ export namespace ppnt::http {
                     break;
                 }
 
-                co_await flush_writes();
+                auto write_res = co_await flush_writes();
+                if (!write_res) {
+                    should_close_ = true;
+                    break;
+                }
             }
 
             for (auto& [id, ctx] : streams_) {
@@ -373,7 +361,7 @@ export namespace ppnt::http {
                 if (ctx->body_waker) {
                     auto waker = std::move(ctx->body_waker);
                     ctx->body_waker = nullptr;
-                    waker({});
+                    waker(std::move(ctx->body_buffer));
                 }
             }
             streams_.clear();

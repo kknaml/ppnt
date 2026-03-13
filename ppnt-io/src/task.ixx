@@ -143,6 +143,13 @@ namespace ppnt::io {
         struct JoinHandleAwaiter final : BaseTaskAwaiter<typename Task<T>::promise_type> {
             using BaseTaskAwaiter<typename Task<T>::promise_type>::BaseTaskAwaiter;
 
+            template<typename Promise2>
+            auto await_suspend(std::coroutine_handle<Promise2> parent) -> void {
+                if (this->current) {
+                    this->current.promise().parent = parent;
+                }
+            }
+
             auto await_resume() -> Regularized<T> {
                 return std::move(this->current.promise()).get_value();
             }

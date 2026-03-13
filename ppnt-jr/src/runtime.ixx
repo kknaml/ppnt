@@ -5,6 +5,7 @@ import std;
 import v8;
 import kknt.jr.event_loop;
 import ppnt.jr.builtin;
+import ppnt.common;
 
 namespace {
     auto make_v8_string(v8::Isolate *isolate, std::string_view text) -> v8::Local<v8::String> {
@@ -162,9 +163,9 @@ export namespace ppnt::jr {
                 auto message = try_catch.Message();
                 if (!message.IsEmpty()) {
                     auto text = v8::String::Utf8Value{isolate_, message->Get()};
-                    std::println("[JS Runtime Error]: {}", *text != nullptr ? *text : "<unknown>");
+                    log::error({"[JS Runtime Error]: {}"}, *text != nullptr ? *text : "<unknown>");
                 } else {
-                    std::println("[JS Runtime Error]: <unknown>");
+                    log::error({"[JS Runtime Error]: <unknown>"});
                 }
                 return;
             }

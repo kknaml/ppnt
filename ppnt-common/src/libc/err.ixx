@@ -6,6 +6,8 @@ export module ppnt.libc:err;
 
 export namespace ppnt::libc {
 
+    constexpr int e_again = EAGAIN;
+    constexpr int e_wouldblock = EWOULDBLOCK;
     constexpr int e_dead_lk = EDEADLK;
     constexpr int e_name_too_long = ENAMETOOLONG;
     constexpr int e_no_lck = ENOLCK;

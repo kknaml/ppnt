@@ -118,8 +118,23 @@ export namespace ppnt::net {
         }
 
         auto is_alive() const -> bool {
-            // TODO
-            return fd_ >= 0;
+            if (fd_ < 0) return false;
+
+            std::uint8_t byte{0};
+            auto n = libc::recv(fd_, &byte, sizeof(byte), libc::msg_peek | libc::msg_dontwait);
+            if (n > 0) {
+                // Idle keep-alive sockets should not have unread bytes pending.
+                return false;
+            }
+            if (n == 0) {
+                return false;
+            }
+
+            auto err = libc::error_no();
+            if (err == libc::e_again || err == libc::e_wouldblock) {
+                return true;
+            }
+            return false;
         }
     };
 }
