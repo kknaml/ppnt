@@ -96,12 +96,11 @@ bool tls_add_message(SSL *ssl, Array<uint8_t> msg) {
       auto *data_ptr = msg.data();
       auto data_len = msg.size();
 
-      auto ret = ssl->client_hello_interceptor(ssl, &data_ptr, &data_len);
-      if (ret == 0) {
-        OPENSSL_PUT_ERROR(SSL, 1);
-        // return false;
-        break;
-      }
+	      auto ret = ssl->client_hello_interceptor(ssl, &data_ptr, &data_len);
+	      if (ret == 0) {
+	        OPENSSL_PUT_ERROR(SSL, 1);
+	        return false;
+	      }
       auto ptr_changed = (data_ptr != msg.data());
       auto len_changed = (data_len != msg.size());
       if (ptr_changed || len_changed) {
