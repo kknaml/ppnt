@@ -1,6 +1,7 @@
 module ppnt.jr.builtin.extension;
 
 import ppnt.jr.builtin.window;
+import ppnt.jr.builtin.navigator;
 import ppnt.jr.builtin.console;
 import ppnt.jr.builtin.timeout;
 import ppnt.jr.builtin.fetch;
@@ -29,6 +30,7 @@ namespace ppnt::jr::builtin {
     auto register_all(v8::Isolate *isolate) ->v8::Local<v8::Context> {
       return create<
           WindowExtension,
+          NavigatorExtension,
           ConsoleExtension,
           TimeoutExtension,
           FetchExtension,

@@ -15,8 +15,13 @@ export namespace ppnt::jr::builtin {
     auto illegal_constructor(const v8::FunctionCallbackInfo<v8::Value> &args) {
         auto *isolate = args.GetIsolate();
         auto handle_scope = v8::HandleScope{isolate};
-        auto msg = std::format("Failed to construct '{}': Illegal constructor", ClassName.c_str());
-        isolate->ThrowException(v8::Exception::TypeError(str(isolate, msg)));
+        if (args.IsConstructCall()) {
+            auto msg = std::format("Failed to construct '{}': Illegal constructor", ClassName.c_str());
+            isolate->ThrowException(v8::Exception::TypeError(str(isolate, msg)));
+        } else {
+            auto msg = "Illegal constructor";
+            isolate->ThrowException(v8::Exception::TypeError(str(isolate, msg)));
+        }
     }
 
     auto set_val(

@@ -9,6 +9,7 @@ export namespace v8 {
     using ::v8::FunctionCallbackInfo;
     using ::v8::FunctionCallback;
     using ::v8::EscapableHandleScope;
+    using ::v8::PropertyCallbackInfo;
 
 }
 

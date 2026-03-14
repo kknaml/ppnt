@@ -6,6 +6,7 @@ import v8;
 import kknt.jr.event_loop;
 import ppnt.jr.builtin;
 import ppnt.common;
+import ppnt.jr.env.br_env;
 
 namespace {
     auto make_v8_string(v8::Isolate *isolate, std::string_view text) -> v8::Local<v8::String> {
@@ -93,9 +94,13 @@ export namespace ppnt::jr {
         v8::ArrayBuffer::Allocator *allocator_;
         v8::Global<v8::Context> context_;
         std::unique_ptr<EventLoop> event_loop_;
-
+        std::unique_ptr<env::BrEnv> br_env_;
     public:
-        Runtime() {
+        explicit Runtime(std::unique_ptr<env::BrEnv> br_env = nullptr) {
+            br_env_ = std::move(br_env);
+            if (!br_env) {
+                log::warn({"Browser Env not set"});
+            }
             auto create_param = v8::Isolate::CreateParams{};
             create_param.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
             allocator_ = create_param.array_buffer_allocator;
@@ -132,7 +137,7 @@ export namespace ppnt::jr {
                 bind_host_functions(ctx);
             }
             context_.Reset(isolate_, ctx);
-            std::println("[Runtime] Context reset");
+            log::info({"[Runtime] Context reset"});
         }
 
         auto execute_script(
@@ -142,6 +147,8 @@ export namespace ppnt::jr {
             auto isolate_scope = v8::Isolate::Scope{isolate_};
             auto handle_scope = v8::HandleScope{isolate_};
             auto context = v8::Local<v8::Context>::New(isolate_, context_);
+            auto env_ext = v8::External::New(isolate_, br_env_.get());
+            context->SetEmbedderData(0, env_ext);
             auto context_scope = v8::Context::Scope{context};
 
             auto try_catch = v8::TryCatch{isolate_};
@@ -151,9 +158,9 @@ export namespace ppnt::jr {
                 auto message = try_catch.Message();
                 if (!message.IsEmpty()) {
                     auto text = v8::String::Utf8Value{isolate_, message->Get()};
-                    std::println("[JS Compile Error]: {}", *text != nullptr ? *text : "<unknown>");
+                    log::error({"[JS Compile Error]: {}"}, *text != nullptr ? *text : "<unknown>");
                 } else {
-                    std::println("[JS Compile Error]: <unknown>");
+                    log::error({"[JS Compile Error]: <unknown>"});
                 }
                 return;
             }

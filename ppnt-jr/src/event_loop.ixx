@@ -3,7 +3,7 @@ export module kknt.jr.event_loop;
 
 import std;
 import v8;
-import ppnt.traits;
+import ppnt.common;
 
 export namespace ppnt::jr {
     inline constexpr int kEventLoopIsolateDataSlot = 0;
@@ -192,10 +192,10 @@ export namespace ppnt::jr {
                         auto message = try_catch.Message();
                         if (!message.IsEmpty()) {
                             auto err = v8::String::Utf8Value{isolate_, message->Get()};
-                            std::println("[JS Error]: {}", *err != nullptr ? *err : "<unknown>");
+                            log::error({"[JS Error]: {}"}, *err != nullptr ? *err : "<unknown>");
                         } else {
                             auto err = v8::String::Utf8Value{isolate_, try_catch.Exception()};
-                            std::println("[JS Error]: {}", *err != nullptr ? *err : "<unknown>");
+                            log::error({"[JS Error]: {}"}, *err != nullptr ? *err : "<unknown>");
                         }
                     }
                 }
