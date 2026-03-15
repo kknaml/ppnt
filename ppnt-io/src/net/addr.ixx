@@ -23,6 +23,7 @@ export namespace ppnt::net {
 
         static auto from_ip_port(std::string_view ip, int port) -> Result<SocketAddress> {
             SocketAddress addr;
+            port = libc::htons(port);
             auto *addr4 = reinterpret_cast<libc::sockaddr_in *>(&addr);
             if (libc::inet_pton(libc::af_inet, ip.data(), &addr4->sin_addr) == 1) {
                 addr4->sin_family = libc::af_inet;

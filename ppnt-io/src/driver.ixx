@@ -16,6 +16,7 @@ namespace ppnt::io {
             uint16_t bid{0};             // 2 bytes: Buffer ID
             uint8_t ref_count{1};        // 1 byte: For linked timeout (IO + Timeout)
             uint8_t flags{0};            // 1 byte: Status flags
+            uint32_t cqe_flags{0};
         } data;
 
         // Union for space optimization
@@ -47,6 +48,8 @@ namespace ppnt::io {
 
         static auto set_ring(Ring *ring) -> void;
         static auto current() -> Ring &;
+
+        auto get_sqe() -> liburing::io_uring_sqe *;
 
         // Generic submit
         template<typename PrepFn>

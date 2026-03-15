@@ -61,6 +61,7 @@ export namespace liburing {
     using ::io_uring_prep_recv;
     using ::io_uring_prep_provide_buffers;
     using ::io_uring_prep_link_timeout;
+    using ::io_uring_prep_multishot_accept;
 
     // CQE Iteration
     using ::io_uring_cq_advance;
@@ -69,6 +70,7 @@ export namespace liburing {
     using ::io_uring_cqe_iter_next;
 
     constexpr int ioring_cqe_f_buffer = IORING_CQE_F_BUFFER;
+    constexpr int ioring_cqe_f_more = IORING_CQE_F_MORE;
     constexpr int iosqe_io_link = IOSQE_IO_LINK;
     constexpr int iosqe_buffer_select = IOSQE_BUFFER_SELECT;
 }

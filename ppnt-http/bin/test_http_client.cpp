@@ -6,6 +6,7 @@ import ppnt.io.runtime;
 import ppnt.io.task;
 import ppnt.log;
 import ppnt.net.url;
+import ppnt.http.session;
 
 using namespace ppnt;
 using namespace ppnt::http;

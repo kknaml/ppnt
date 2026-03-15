@@ -41,6 +41,10 @@ namespace ppnt::io {
         return *current_ring;
     }
 
+    auto Ring::get_sqe() -> liburing::io_uring_sqe * {
+        return liburing::io_uring_get_sqe(&ring_);
+    }
+
     auto Ring::arm_eventfd_read() -> void {
         auto *sqe = liburing::io_uring_get_sqe(&ring_);
         if (!sqe) {
@@ -82,6 +86,8 @@ namespace ppnt::io {
                         op->data.result = -libc::e_time;
                     }
                 } else {
+                    log::info({"cqe wakeup"});
+                    op->data.cqe_flags = cqe->flags;
                     if (cqe->res != -libc::e_canceled) {
                         op->data.result = cqe->res;
                         if (cqe->flags & liburing::ioring_cqe_f_buffer) {
